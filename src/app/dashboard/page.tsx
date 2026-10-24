@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { headers } from "next/headers";
+import { siteUrl } from "@/lib/site-url";
 import { NavBar } from "@/components/NavBar";
 import { findStreamerById } from "@/lib/streamers";
 import { donationTotals, listDonations } from "@/lib/store";
 import { currentUser } from "@/lib/auth";
 import { baht } from "@/lib/format";
 import { CopyField, LogoutButton, RegenerateWidgetButton, TestAlertButton } from "./DashboardClient";
+import { QrSection } from "./QrSection";
 import { SettingsForm } from "./SettingsForm";
 import { SoundSettings } from "./SoundSettings";
 import { getSoundSettings, toClient } from "@/lib/alert-settings";
@@ -21,11 +22,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   if (!user) redirect("/login?next=/dashboard");
   const streamer = await findStreamerById(user.id);
   if (!streamer) redirect("/login");
-  // ใช้โดเมนที่ผู้ใช้เปิดอยู่จริง (ถูกเสมอทั้ง localhost, *.vercel.app และโดเมนของตัวเอง)
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host");
-  const proto = h.get("x-forwarded-proto") ?? (host?.startsWith("localhost") || host?.startsWith("127.") ? "http" : "https");
-  const base = host ? `${proto.split(",")[0]}://${host.split(",")[0]}` : (process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000");
+  const base = await siteUrl();
 
   const [donations, totals, sound] = await Promise.all([listDonations(streamer.id), donationTotals(streamer.id), getSoundSettings(streamer.id)]);
   const total = totals.total;
@@ -85,6 +82,18 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
               <TestAlertButton />
               <RegenerateWidgetButton />
             </div>
+          </section>
+
+          <section id="qr" className="mt-12 scroll-mt-16">
+            <h2 className="text-[22px] font-semibold tracking-tight">QR หน้าโดเนท</h2>
+            <p className="mt-1 text-[15px] text-ink-2">ผู้ชมสแกนแล้วเข้าหน้าโดเนทของคุณทันที ใช้ขึ้นจอไลฟ์ โพสต์ หรือพิมพ์ติดโต๊ะได้</p>
+            {user.status === "pending" || !streamer.promptpayId ? (
+              <p className="mt-4 rounded-[24px] bg-surface p-6 text-ink-2">
+                {user.status === "pending" ? "QR จะใช้ได้หลังผู้ดูแลอนุมัติบัญชี" : "ตั้งพร้อมเพย์ในส่วนตั้งค่าก่อน แล้ว QR จะพร้อมใช้"}
+              </p>
+            ) : (
+              <QrSection username={streamer.username} pageUrl={pageUrl} cardUrl={`${base}/widget/qr/${streamer.username}`} />
+            )}
           </section>
 
           <section id="sound" className="mt-12 scroll-mt-16">
