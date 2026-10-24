@@ -271,8 +271,27 @@ function PayStep({
       if (test.paidBefore) form.append("testPaidBefore", "1");
     }
     try {
-      const res = await fetch(`/api/donate/${payment.id}/slip`, { method: "POST", body: form });
-      const json = await res.json();
+      if (file && (form.get("slip") as File).size > UPLOAD_LIMIT + 1024 * 1024) {
+        throw new Error("รูปใหญ่เกินไป ลองใช้ภาพหน้าจอสลิป หรือกด 'บันทึกสลิป' จากแอปธนาคารแล้วแนบใหม่");
+      }
+      // เน็ตมือถือสะดุด → ลองส่งซ้ำให้อีก 1 ครั้ง
+      let res: Response | null = null;
+      for (let i = 0; i < 2 && !res; i++) {
+        res = await fetch(`/api/donate/${payment.id}/slip`, { method: "POST", body: form }).catch(async () => {
+          await new Promise((r) => setTimeout(r, 1200));
+          return null;
+        });
+        // ส่งไปถึงแล้วแต่คำตอบหาย → ถ้ารายการผ่านแล้วก็จบเลย ไม่ส่งซ้ำ
+        if (!res) {
+          const st = await fetch(`/api/donate/${payment.id}`)
+            .then((r) => r.json())
+            .catch(() => null);
+          if (st?.status === "SUCCESS") return onDone();
+        }
+      }
+      if (!res) throw new Error("ส่งรูปไม่สำเร็จ (อินเทอร์เน็ตสะดุด) ลองกดส่งสลิปอีกครั้ง");
+      const json = await res.json().catch(() => null);
+      if (!json) throw new Error(`เซิร์ฟเวอร์ตอบกลับผิดปกติ (${res.status}) ลองกดส่งสลิปอีกครั้ง`);
       if (!res.ok) throw new Error(json.message ?? "ตรวจสลิปไม่ผ่าน");
       onDone();
     } catch (err) {
@@ -322,7 +341,19 @@ function PayStep({
             type="file"
             accept="image/*"
             className="sr-only"
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            onChange={async (e) => {
+              const picked = e.target.files?.[0] ?? null;
+              e.target.value = ""; // เลือกรูปเดิมซ้ำได้
+              if (!picked) return;
+              setError(null);
+              // อ่านรูปเก็บไว้ในหน่วยความจำทันที: บน iPhone ไฟล์จากคลังรูปอ่านไม่ได้แล้วหลังสลับแอป (ขึ้น "Load failed")
+              try {
+                setFile(new File([await picked.arrayBuffer()], picked.name, { type: picked.type || "image/jpeg" }));
+              } catch {
+                setFile(null);
+                setError("เปิดรูปนี้ไม่ได้ ลองเลือกรูปใหม่อีกครั้ง");
+              }
+            }}
           />
         </label>
         {isTest && (
@@ -430,29 +461,59 @@ function cleanAmount(raw: string) {
   return out;
 }
 
+const UPLOAD_LIMIT = 3.5 * 1024 * 1024; // Vercel รับไม่เกิน ~4.5 MB เผื่อไว้
+
+/** เปิดรูปเป็นภาพที่วาดลง canvas ได้ (createImageBitmap ไม่มี/ใช้ไม่ได้ในบางเครื่อง → ใช้ <img>) */
+async function decode(file: Blob): Promise<{ img: CanvasImageSource; w: number; h: number; done: () => void }> {
+  try {
+    const bmp = await createImageBitmap(file);
+    return { img: bmp, w: bmp.width, h: bmp.height, done: () => bmp.close() };
+  } catch {
+    const url = URL.createObjectURL(file);
+    const el = new Image();
+    el.decoding = "async";
+    el.src = url;
+    await el.decode();
+    return { img: el, w: el.naturalWidth, h: el.naturalHeight, done: () => URL.revokeObjectURL(url) };
+  }
+}
+
 /**
- * ย่อรูปสลิปก่อนอัปโหลด (ด้านยาวไม่เกิน 2200px, แปลงเป็น JPEG) ส่งเร็วขึ้นมากบนเน็ตมือถือ และเซิร์ฟเวอร์อ่านเร็วขึ้น
- * รูปเล็กอยู่แล้ว หรือย่อไม่ได้ (เช่น HEIC บางเครื่อง) → ส่งไฟล์เดิม
+ * ย่อรูปสลิปก่อนอัปโหลด (ด้านยาวไม่เกิน 2200px, แปลงเป็น JPEG) ส่งเร็วขึ้นบนเน็ตมือถือ และไม่เกินขนาดที่เซิร์ฟเวอร์รับ
+ * ถ้ายังใหญ่อยู่จะลดขนาด/คุณภาพลงอีก ย่อไม่ได้เลย → ส่งไฟล์เดิม
  */
 async function shrinkImage(file: File): Promise<File> {
-  const MAX = 2200;
+  if (!file.type.startsWith("image/") || file.size < 400 * 1024) return file;
+  let decoded: Awaited<ReturnType<typeof decode>> | null = null;
   try {
-    if (!file.type.startsWith("image/") || file.size < 400 * 1024) return file;
-    const bmp = await createImageBitmap(file);
-    const scale = Math.min(1, MAX / Math.max(bmp.width, bmp.height));
-    if (scale === 1 && file.size < 1.5 * 1024 * 1024) return file;
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.round(bmp.width * scale);
-    canvas.height = Math.round(bmp.height * scale);
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return file;
-    ctx.fillStyle = "#fff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
-    const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/jpeg", 0.92));
-    if (!blob || blob.size >= file.size) return file;
-    return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" });
+    decoded = await decode(file);
+    let best: Blob | null = null;
+    for (const [max, q] of [
+      [2200, 0.92],
+      [2200, 0.8],
+      [1600, 0.8],
+      [1280, 0.75],
+    ] as const) {
+      const scale = Math.min(1, max / Math.max(decoded.w, decoded.h));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(decoded.w * scale);
+      canvas.height = Math.round(decoded.h * scale);
+      const ctx = canvas.getContext("2d");
+      if (!ctx) break;
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(decoded.img, 0, 0, canvas.width, canvas.height);
+      const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/jpeg", q));
+      canvas.width = canvas.height = 0; // คืนหน่วยความจำ (iPhone จำกัด canvas)
+      if (!blob) break;
+      best = blob;
+      if (blob.size <= UPLOAD_LIMIT && (blob.size < file.size || file.size > UPLOAD_LIMIT)) break;
+    }
+    if (!best || (best.size >= file.size && file.size <= UPLOAD_LIMIT)) return file;
+    return new File([best], file.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" });
   } catch {
     return file;
+  } finally {
+    decoded?.done();
   }
 }

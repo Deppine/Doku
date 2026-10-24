@@ -5,6 +5,7 @@ import { accountMatches, getSlipVerifier, slipMode } from "@/lib/slip";
 import { saveSlipFile } from "@/lib/uploads";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 const MAX_SIZE = 4 * 1024 * 1024; // Vercel รับ request ได้ไม่เกิน ~4.5 MB
 
