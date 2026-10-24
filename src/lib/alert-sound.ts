@@ -14,6 +14,11 @@ export type AlertSoundSettings = {
   ttsTemplate: string;
   ttsRate: number; // 0.5–1.5
   ttsVolume: number; // 0–100
+  ttsVoice: "female" | "male";
+  /** auto = ใช้เสียงจากเซิร์ฟเวอร์ถ้าตั้งค่าไว้ ไม่งั้นใช้เสียงในเครื่อง · browser = เสียงในเครื่องเสมอ */
+  ttsEngine: "auto" | "browser";
+  /** ลิงก์ขอไฟล์เสียงอ่านจากเซิร์ฟเวอร์ (null = ใช้เสียงในเครื่อง) */
+  ttsServerUrl: string | null;
 };
 
 export const DEFAULT_SOUND: AlertSoundSettings = {
@@ -24,6 +29,9 @@ export const DEFAULT_SOUND: AlertSoundSettings = {
   ttsTemplate: "{name} โดเนท {amount} บาท {message}",
   ttsRate: 1,
   ttsVolume: 100,
+  ttsVoice: "female",
+  ttsEngine: "auto",
+  ttsServerUrl: null,
 };
 
 export const PRESETS: { id: Exclude<SoundPreset, "custom">; label: string }[] = [
@@ -158,8 +166,44 @@ export async function speak(text: string, s: Pick<AlertSoundSettings, "ttsRate" 
   }
 }
 
+/**
+ * อ่านด้วยเสียงที่เซิร์ฟเวอร์สร้าง (Google/Azure) — เสียงเหมือนกันทุกเครื่อง
+ * คืน false ถ้าขอเสียงไม่สำเร็จ (ให้ไปใช้เสียงในเครื่องแทน)
+ */
+export async function speakServer(url: string, text: string, s: Pick<AlertSoundSettings, "ttsRate" | "ttsVolume" | "ttsVoice">) {
+  try {
+    if (!text || s.ttsVolume <= 0) return true;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, voice: s.ttsVoice, rate: s.ttsRate }),
+    });
+    if (!res.ok) return false;
+    const src = URL.createObjectURL(await res.blob());
+    const el = new Audio(src);
+    el.volume = Math.min(1, s.ttsVolume / 100);
+    await new Promise<void>((resolve) => {
+      const done = () => {
+        URL.revokeObjectURL(src);
+        resolve();
+      };
+      el.addEventListener("ended", done, { once: true });
+      el.addEventListener("error", done, { once: true });
+      setTimeout(done, 30_000);
+      el.play().catch(done);
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** เล่นครบชุด: เสียงแจ้งเตือน แล้วตามด้วยเสียงอ่านข้อความ */
 export async function playAlert(s: AlertSoundSettings, d: { donorName: string; amount: number; message: string }, ttsAllowed = true) {
+  // ขอเสียงอ่านจากเซิร์ฟเวอร์ไปพร้อมกับเล่นเสียงแจ้งเตือน จะได้ไม่ต้องรอนาน
+  const text = s.ttsEnabled && ttsAllowed ? ttsText(s.ttsTemplate, d) : "";
   await playAlertSound(s);
-  if (s.ttsEnabled && ttsAllowed) await speak(ttsText(s.ttsTemplate, d), s);
+  if (!text) return;
+  if (s.ttsServerUrl && s.ttsEngine !== "browser" && (await speakServer(s.ttsServerUrl, text, s))) return;
+  await speak(text, s);
 }

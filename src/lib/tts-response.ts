@@ -1,0 +1,25 @@
+import { NextResponse } from "next/server";
+import { cleanText, synthesize, ttsProvider } from "./tts-server";
+import { hit, isLimited } from "./rate-limit";
+
+/**
+ * รับ { text, voice, rate } แล้วตอบเป็นไฟล์ MP3
+ * จำกัดจำนวนครั้งต่อคน กันใครเอาลิงก์ไปยิงจนโควตาหมด
+ */
+export async function ttsResponse(req: Request, limitKey: string, max: number) {
+  if (!ttsProvider()) return NextResponse.json({ message: "ยังไม่ได้ตั้งค่าเสียงอ่านจากเซิร์ฟเวอร์" }, { status: 501 });
+  if (await isLimited(limitKey, max)) return NextResponse.json({ message: "ขอเสียงอ่านถี่เกินไป รอสักครู่" }, { status: 429 });
+
+  const b = (await req.json().catch(() => ({}))) as { text?: unknown; voice?: unknown; rate?: unknown };
+  const text = cleanText(b.text);
+  if (!text) return NextResponse.json({ message: "ไม่มีข้อความ" }, { status: 400 });
+  await hit(limitKey, 10 * 60_000);
+
+  try {
+    const mp3 = await synthesize(text, b.voice === "male" ? "male" : "female", Number(b.rate) || 1);
+    return new Response(new Uint8Array(mp3), { headers: { "Content-Type": "audio/mpeg", "Cache-Control": "no-store" } });
+  } catch (e) {
+    console.error("[tts]", (e as Error).message);
+    return NextResponse.json({ message: "สร้างเสียงอ่านไม่สำเร็จ" }, { status: 502 });
+  }
+}

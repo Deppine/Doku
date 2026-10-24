@@ -22,7 +22,7 @@ export async function GET(req: Request) {
   const resumeFrom = Number(req.headers.get("last-event-id") ?? "");
   let lastId = Number.isFinite(resumeFrom) && resumeFrom > 0 ? resumeFrom : await latestEventId(streamer.id);
   const stored = await getSoundSettings(streamer.id);
-  const sound = toClient(stored, widgetSoundUrl(token, stored.soundFile));
+  const sound = toClient(stored, widgetSoundUrl(token, stored.soundFile), token);
   await markWidgetSeen(streamer.id).catch(() => {});
 
   const encoder = new TextEncoder();

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { siteUrl } from "@/lib/site-url";
+import { PROVIDER_LABEL, ttsProvider } from "@/lib/tts-server";
 import { NavBar } from "@/components/NavBar";
 import { findStreamerById } from "@/lib/streamers";
 import { donationTotals, listDonations } from "@/lib/store";
@@ -23,6 +24,8 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   const streamer = await findStreamerById(user.id);
   if (!streamer) redirect("/login");
   const base = await siteUrl();
+  const provider = ttsProvider();
+  const ttsLabel = provider ? PROVIDER_LABEL[provider] : null;
 
   const [donations, totals, sound] = await Promise.all([listDonations(streamer.id), donationTotals(streamer.id), getSoundSettings(streamer.id)]);
   const total = totals.total;
@@ -99,7 +102,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
           <section id="sound" className="mt-12 scroll-mt-16">
             <h2 className="text-[22px] font-semibold tracking-tight">เสียงแจ้งเตือน</h2>
             <p className="mt-1 text-[15px] text-ink-2">บันทึกแล้ววิดเจ็ตใน OBS ใช้เสียงใหม่ทันที ไม่ต้องรีเฟรช</p>
-            <SoundSettings initial={toClient(sound, null)} hasFile={Boolean(sound.soundFile)} />
+            <SoundSettings initial={toClient(sound, null)} hasFile={Boolean(sound.soundFile)} serverVoice={ttsLabel} />
           </section>
 
           <section id="settings" className="mt-12 scroll-mt-16">

@@ -4,12 +4,12 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { PRESETS, findThaiVoice, playAlert, playAlertSound, type AlertSoundSettings, type SoundPreset } from "@/lib/alert-sound";
 
-type Props = { initial: AlertSoundSettings; hasFile: boolean };
+type Props = { initial: AlertSoundSettings; hasFile: boolean; serverVoice: string | null };
 
 const SAMPLE = { donorName: "ต้นกล้า", amount: 100, message: "เปิดเพลงที่ขอหน่อยครับ" };
 const OWN_URL = "/api/dashboard/alert-sound";
 
-export function SoundSettings({ initial, hasFile }: Props) {
+export function SoundSettings({ initial, hasFile, serverVoice }: Props) {
   const router = useRouter();
   const [v, setV] = useState(initial);
   const [fileReady, setFileReady] = useState(hasFile);
@@ -157,7 +157,9 @@ export function SoundSettings({ initial, hasFile }: Props) {
         <label className="flex cursor-pointer items-center justify-between gap-4 px-4 py-3.5">
           <span>
             <span className="block text-ink">อ่านข้อความโดเนทออกเสียง</span>
-            <span className="block text-[13px] text-ink-3">ใช้เสียงภาษาไทยของเครื่องที่เปิด OBS</span>
+            <span className="block text-[13px] text-ink-3">
+              {serverVoice ? `เสียงภาษาไทยจากเซิร์ฟเวอร์ (${serverVoice}) เหมือนกันทุกเครื่อง` : "ใช้เสียงภาษาไทยของเครื่องที่เปิด OBS"}
+            </span>
           </span>
           <input
             type="checkbox"
@@ -173,7 +175,35 @@ export function SoundSettings({ initial, hasFile }: Props) {
         </label>
         {v.ttsEnabled && (
           <>
-            {thaiVoice === null && (
+            {serverVoice && (
+              <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                <span className="text-ink">แหล่งเสียง</span>
+                <Choice
+                  label="แหล่งเสียง"
+                  value={v.ttsEngine}
+                  onChange={(ttsEngine) => update({ ttsEngine })}
+                  options={[
+                    { v: "auto", label: `เซิร์ฟเวอร์ (${serverVoice})` },
+                    { v: "browser", label: "เสียงในเครื่อง" },
+                  ]}
+                />
+              </div>
+            )}
+            {serverVoice && v.ttsEngine !== "browser" && (
+              <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                <span className="text-ink">เสียงผู้อ่าน</span>
+                <Choice
+                  label="เสียงผู้อ่าน"
+                  value={v.ttsVoice}
+                  onChange={(ttsVoice) => update({ ttsVoice })}
+                  options={[
+                    { v: "female", label: "ผู้หญิง" },
+                    { v: "male", label: "ผู้ชาย" },
+                  ]}
+                />
+              </div>
+            )}
+            {(!serverVoice || v.ttsEngine === "browser") && thaiVoice === null && (
               <div className="bg-[#f5a623]/10 px-4 py-3.5 text-[14px]">
                 <p className="font-semibold text-ink">เครื่องนี้ยังไม่มีเสียงพูดภาษาไทย</p>
                 <p className="mt-1 text-ink-2">
@@ -185,7 +215,9 @@ export function SoundSettings({ initial, hasFile }: Props) {
                 </ol>
               </div>
             )}
-            {thaiVoice && <p className="px-4 py-2.5 text-[13px] text-ink-3">เสียงที่ใช้บนเครื่องนี้: {thaiVoice}</p>}
+            {(!serverVoice || v.ttsEngine === "browser") && thaiVoice && (
+              <p className="px-4 py-2.5 text-[13px] text-ink-3">เสียงที่ใช้บนเครื่องนี้: {thaiVoice}</p>
+            )}
             <div className="px-4 py-3.5">
               <label htmlFor="tts-template" className="block text-ink">
                 ประโยคที่อ่าน
@@ -270,5 +302,36 @@ function Slider({
       />
       <span className="w-14 shrink-0 text-right text-[15px] tabular-nums text-ink-2">{format ? format(value) : `${Math.round(value)}${suffix}`}</span>
     </label>
+  );
+}
+
+function Choice<T extends string>({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: T;
+  onChange: (v: T) => void;
+  options: { v: T; label: string }[];
+}) {
+  return (
+    <div role="radiogroup" aria-label={label} className="inline-flex gap-1 rounded-full bg-fill p-1 text-[13px]">
+      {options.map((o) => (
+        <button
+          key={o.v}
+          type="button"
+          role="radio"
+          aria-checked={value === o.v}
+          onClick={() => onChange(o.v)}
+          className={`rounded-full px-3 py-1 font-medium transition-all ${
+            value === o.v ? "bg-chip text-ink shadow-[0_2px_6px_rgb(0_0_0/0.12)]" : "text-ink-2 hover:text-ink"
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
   );
 }

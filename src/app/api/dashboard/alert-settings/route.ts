@@ -24,6 +24,6 @@ export async function POST(req: Request) {
 
   // อัปเดต widget ใน OBS ทันที
   const s = await findStreamerById(userId);
-  if (s) await emitSettings(userId, toClient(next, widgetSoundUrl(s.widgetToken, next.soundFile)));
+  if (s) await emitSettings(userId, toClient(next, widgetSoundUrl(s.widgetToken, next.soundFile), s.widgetToken));
   return NextResponse.json({ ok: true });
 }
