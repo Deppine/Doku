@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 
 export type NavUser = { username: string; displayName: string; role: "admin" | "user" };
 
-/** ปุ่มวงกลมชื่อผู้ใช้ กดแล้วมีเมนู แดชบอร์ด / จัดการผู้ใช้ / ออกจากระบบ */
+/** ปุ่มวงกลมชื่อผู้ใช้ กดแล้วมีเมนู แดชบอร์ด / ผู้ดูแลระบบ / ออกจากระบบ */
 export function UserMenu({ user }: { user: NavUser }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -50,7 +50,7 @@ export function UserMenu({ user }: { user: NavUser }) {
           </MenuLink>
           {user.role === "admin" && (
             <MenuLink href="/admin" onClick={() => setOpen(false)}>
-              จัดการผู้ใช้
+              ผู้ดูแลระบบ
             </MenuLink>
           )}
           <MenuLink href={`/${user.username}`} onClick={() => setOpen(false)}>

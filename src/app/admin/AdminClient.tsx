@@ -129,21 +129,32 @@ function UserItem({ u, isMe }: { u: UserRow; isMe: boolean }) {
         >
           {u.displayName.slice(0, 1).toUpperCase()}
         </span>
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 basis-[calc(100%-3.5rem)] sm:basis-0">
           <p className="truncate font-semibold">
             {u.displayName}
             {isMe && <span className="ml-2 text-[13px] font-normal text-ink-3">(คุณ)</span>}
+            {u.status !== "active" && (
+              <span
+                className={`ml-2 rounded-full px-2 py-0.5 align-middle text-[12px] font-semibold ${
+                  u.status === "pending" ? "bg-[#f5a623]/20 text-[#d48806]" : "bg-red/15 text-red"
+                }`}
+              >
+                {u.status === "pending" ? "รออนุมัติ" : "ถูกระงับ"}
+              </span>
+            )}
           </p>
           <p className="truncate text-[13px] text-ink-3">
-            @{u.username} · {u.hasPayment ? "ตั้งพร้อมเพย์แล้ว" : "ยังไม่ตั้งพร้อมเพย์"} · โดเนท {u.donationCount} รายการ ฿
+            @{u.username} · สมัคร {new Date(u.createdAt).toLocaleDateString("th-TH", { timeZone: "Asia/Bangkok", day: "numeric", month: "short", year: "2-digit" })} · {u.hasPayment ? "ตั้งพร้อมเพย์แล้ว" : "ยังไม่ตั้งพร้อมเพย์"} · โดเนท {u.donationCount} รายการ ฿
             {baht(u.donationTotal)}
           </p>
         </div>
-        <RoleSwitch
-          value={u.role}
-          disabled={busy}
-          onChange={(role) => call("PATCH", { role }, role === "admin" ? "เปลี่ยนเป็นผู้ดูแลแล้ว" : "เปลี่ยนเป็นสตรีมเมอร์แล้ว")}
-        />
+        <div className="ml-14 sm:ml-0">
+          <RoleSwitch
+            value={u.role}
+            disabled={busy}
+            onChange={(role) => call("PATCH", { role }, role === "admin" ? "เปลี่ยนเป็นผู้ดูแลแล้ว" : "เปลี่ยนเป็นสตรีมเมอร์แล้ว")}
+          />
+        </div>
       </div>
 
       {mode === "password" ? (
@@ -174,6 +185,39 @@ function UserItem({ u, isMe }: { u: UserRow; isMe: boolean }) {
         </form>
       ) : (
         <div className="mt-2 flex flex-wrap gap-1 pl-14">
+          {!isMe && u.status === "pending" && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => call("PATCH", { status: "active" }, "อนุมัติแล้ว หน้าโดเนทเปิดใช้ได้")}
+              className="btn-primary px-4 py-1.5 text-[14px]"
+            >
+              อนุมัติ
+            </button>
+          )}
+          {!isMe && u.status === "suspended" && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => call("PATCH", { status: "active" }, "เปิดใช้บัญชีแล้ว")}
+              className="btn-quiet px-3 py-1.5 text-[14px]"
+            >
+              เปิดใช้อีกครั้ง
+            </button>
+          )}
+          {!isMe && u.status !== "suspended" && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                if (window.confirm(`ระงับ @${u.username}? เจ้าของจะล็อกอินไม่ได้ และหน้าโดเนท/วิดเจ็ตจะปิดทันที`))
+                  call("PATCH", { status: "suspended" }, "ระงับบัญชีแล้ว");
+              }}
+              className="btn-quiet px-3 py-1.5 text-[14px] text-ink-2 hover:text-red"
+            >
+              ระงับ
+            </button>
+          )}
           <button type="button" onClick={() => setMode("password")} className="btn-quiet px-3 py-1.5 text-[14px]">
             เปลี่ยนรหัสผ่าน
           </button>

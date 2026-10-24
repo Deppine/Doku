@@ -19,8 +19,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง" }, { status: 401 });
   }
   await reset(key);
+  const [u] = await query<RowDataPacket & { role: string; status: string }>("SELECT role, status FROM users WHERE id = ?", [userId]);
+  if (u?.status === "suspended") {
+    return NextResponse.json({ message: "บัญชีนี้ถูกระงับ ติดต่อผู้ดูแลระบบ" }, { status: 403 });
+  }
   await startSession(userId);
-  const [u] = await query<RowDataPacket & { role: string }>("SELECT role FROM users WHERE id = ?", [userId]);
-  const role = u?.role === "admin" ? "admin" : "user";
+  const role = u?.role === "admin" && u.status === "active" ? "admin" : "user";
   return NextResponse.json({ ok: true, role, redirect: safeNext(body?.next) ?? homeFor(role) });
 }

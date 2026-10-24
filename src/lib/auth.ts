@@ -48,8 +48,8 @@ export async function endSession() {
   (await cookies()).delete(COOKIE);
 }
 
-/** id ผู้ใช้ที่ล็อกอินอยู่ หรือ null */
-export async function currentUserId(): Promise<number | null> {
+/** id จากคุกกี้ (ตรวจลายเซ็นอย่างเดียว ยังไม่เช็กฐานข้อมูล) */
+async function sessionUserId(): Promise<number | null> {
   const raw = (await cookies()).get(COOKIE)?.value;
   if (!raw) return null;
   const [id, exp, sig] = raw.split(".");
@@ -61,18 +61,29 @@ export async function currentUserId(): Promise<number | null> {
   return Number(id);
 }
 
-export type SessionUser = { id: number; username: string; displayName: string; role: "admin" | "user" };
+export type SessionUser = { id: number; username: string; displayName: string; role: "admin" | "user"; status: "active" | "pending" };
 
 /** ผู้ใช้ที่ล็อกอินอยู่ (อ่านจากฐานข้อมูลทุกครั้ง: ถ้าถูกลบหรือเปลี่ยน role จะมีผลทันที) */
 export async function currentUser(): Promise<SessionUser | null> {
-  const id = await currentUserId();
+  const id = await sessionUserId();
   if (!id) return null;
-  const [u] = await query<RowDataPacket & { id: number; username: string; display_name: string; role: string }>(
-    "SELECT id, username, display_name, role FROM users WHERE id = ?",
+  const [u] = await query<RowDataPacket & { id: number; username: string; display_name: string; role: string; status: string }>(
+    "SELECT id, username, display_name, role, status FROM users WHERE id = ?",
     [id]
   );
-  if (!u) return null;
-  return { id: Number(u.id), username: u.username, displayName: u.display_name, role: u.role === "admin" ? "admin" : "user" };
+  if (!u || u.status === "suspended") return null; // ถูกระงับ = หลุดจากระบบทันที
+  return {
+    id: Number(u.id),
+    username: u.username,
+    displayName: u.display_name,
+    role: u.role === "admin" && u.status === "active" ? "admin" : "user",
+    status: u.status === "pending" ? "pending" : "active",
+  };
+}
+
+/** id ผู้ใช้ที่ล็อกอินอยู่และยังใช้งานได้ (บัญชีถูกลบ/ระงับ → null) */
+export async function currentUserId(): Promise<number | null> {
+  return (await currentUser())?.id ?? null;
 }
 
 /** หน้าแรกหลังล็อกอินตาม role */

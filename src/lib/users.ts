@@ -6,12 +6,18 @@ import bcrypt from "bcryptjs";
 import { exec, query, type RowDataPacket } from "./db";
 
 export type Role = "admin" | "user";
+export type UserStatus = "active" | "pending" | "suspended";
+
+export function toStatus(v: unknown): UserStatus {
+  return v === "pending" || v === "suspended" ? v : "active";
+}
 
 export type UserRow = {
   id: number;
   username: string;
   displayName: string;
   role: Role;
+  status: UserStatus;
   createdAt: number;
   hasPayment: boolean;
   donationCount: number;
@@ -38,25 +44,27 @@ export async function listUsers(): Promise<UserRow[]> {
       username: string;
       display_name: string;
       role: string;
+      status: string;
       created_ms: number;
       has_payment: number;
       n: number;
       total: number | null;
     }
   >(
-    `SELECT u.id, u.username, u.display_name, u.role, UNIX_TIMESTAMP(u.created_at) * 1000 AS created_ms,
+    `SELECT u.id, u.username, u.display_name, u.role, u.status, UNIX_TIMESTAMP(u.created_at) * 1000 AS created_ms,
             (p.id IS NOT NULL) AS has_payment,
             COUNT(d.id) AS n, SUM(COALESCE(d.paid_amount, d.expected_amount)) AS total
      FROM users u
      LEFT JOIN payment_settings p ON p.user_id = u.id
      LEFT JOIN donations d ON d.recipient_user_id = u.id AND d.status = 'verified'
-     GROUP BY u.id ORDER BY u.id`
+     GROUP BY u.id ORDER BY FIELD(u.status, 'pending', 'active', 'suspended'), u.id`
   );
   return rows.map((r) => ({
     id: Number(r.id),
     username: r.username,
     displayName: r.display_name,
     role: r.role === "admin" ? "admin" : "user",
+    status: toStatus(r.status),
     createdAt: Number(r.created_ms),
     hasPayment: Number(r.has_payment) === 1,
     donationCount: Number(r.n),
@@ -64,12 +72,12 @@ export async function listUsers(): Promise<UserRow[]> {
   }));
 }
 
-export async function createUser(input: { username: string; password: string; displayName: string; role: Role }) {
+export async function createUser(input: { username: string; password: string; displayName: string; role: Role; status?: UserStatus }) {
   const hash = await bcrypt.hash(input.password, 12);
   try {
     const res = await exec(
-      "INSERT INTO users (username, password_hash, display_name, role, widget_token) VALUES (?, ?, ?, ?, ?)",
-      [input.username, hash, input.displayName, input.role, randomBytes(24).toString("hex")]
+      "INSERT INTO users (username, password_hash, display_name, role, status, widget_token) VALUES (?, ?, ?, ?, ?, ?)",
+      [input.username, hash, input.displayName, input.role, input.status ?? "active", randomBytes(24).toString("hex")]
     );
     return { ok: true as const, id: res.insertId };
   } catch (e) {
@@ -86,8 +94,12 @@ export async function setRole(id: number, role: Role) {
   await exec("UPDATE users SET role = ? WHERE id = ?", [role, id]);
 }
 
+export async function setStatus(id: number, status: UserStatus) {
+  await exec("UPDATE users SET status = ? WHERE id = ?", [status, id]);
+}
+
 export async function countAdmins() {
-  const [r] = await query<RowDataPacket & { n: number }>("SELECT COUNT(*) AS n FROM users WHERE role = 'admin'");
+  const [r] = await query<RowDataPacket & { n: number }>("SELECT COUNT(*) AS n FROM users WHERE role = 'admin' AND status = 'active'");
   return Number(r?.n ?? 0);
 }
 
@@ -98,6 +110,11 @@ export async function deleteUser(id: number): Promise<{ ok: true } | { ok: false
   await exec("DELETE FROM payment_settings WHERE user_id = ?", [id]);
   await exec("DELETE FROM users WHERE id = ?", [id]);
   return { ok: true };
+}
+
+/** คนที่สมัครเองต้องรอผู้ดูแลอนุมัติก่อนหน้าโดเนทจะเปิด (ตั้ง REGISTRATION_APPROVAL=false เพื่อใช้ได้ทันที) */
+export function registrationNeedsApproval() {
+  return process.env.REGISTRATION_APPROVAL !== "false";
 }
 
 /** เปิดให้สมัครเองได้ไหม (ตั้ง REGISTRATION_OPEN=false ใน .env.local เพื่อปิด ให้ผู้ดูแลสร้างบัญชีอย่างเดียว) */

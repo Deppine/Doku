@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { startSession } from "@/lib/auth";
 import { clientIp, hit, isLimited } from "@/lib/rate-limit";
-import { createUser, registrationOpen, validatePassword, validateUsername } from "@/lib/users";
+import { createUser, registrationNeedsApproval, registrationOpen, validatePassword, validateUsername } from "@/lib/users";
 
 export const runtime = "nodejs";
 
@@ -30,7 +30,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ field: "password", message: "รหัสผ่านต้องไม่มีชื่อผู้ใช้อยู่ข้างใน" }, { status: 400 });
   }
 
-  const r = await createUser({ username, password, displayName, role: "user" }); // สมัครเองได้แค่สิทธิ์สตรีมเมอร์
+  const r = await createUser({ username, password, displayName, role: "user", status: registrationNeedsApproval() ? "pending" : "active" }); // สมัครเองได้แค่สิทธิ์สตรีมเมอร์
   if (!r.ok) return NextResponse.json({ field: "username", message: r.message }, { status: 409 });
 
   await hit(key, 60 * 60_000);

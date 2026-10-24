@@ -138,6 +138,6 @@ export function NavBarClient({ user }: { user: NavUser | null }) {
 
 function authedLinks(user: NavUser) {
   const l = [{ href: "/dashboard", label: "แดชบอร์ด" }];
-  if (user.role === "admin") l.push({ href: "/admin", label: "จัดการผู้ใช้" });
+  if (user.role === "admin") l.push({ href: "/admin", label: "ผู้ดูแลระบบ" });
   return l;
 }

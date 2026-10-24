@@ -25,6 +25,7 @@ services:
       - ./db/001_app_columns.sql:/docker-entrypoint-initdb.d/02-app-columns.sql:ro
       - ./db/002_alert_settings.sql:/docker-entrypoint-initdb.d/03-alert-settings.sql:ro
       - ./db/003_cloud.sql:/docker-entrypoint-initdb.d/04-cloud.sql:ro
+      - ./db/004_user_status.sql:/docker-entrypoint-initdb.d/05-user-status.sql:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-prootpass"]
       interval: 5s

@@ -55,12 +55,13 @@ function map(r: Row): Streamer {
 
 /** สตรีมเมอร์ที่ตั้งค่าบัญชีรับเงินแล้ว (โชว์ในหน้ารายชื่อ) */
 export async function getStreamers() {
-  const rows = await query<Row>(`${SELECT} WHERE p.promptpay_id IS NOT NULL ORDER BY u.id`);
+  const rows = await query<Row>(`${SELECT} WHERE p.promptpay_id IS NOT NULL AND u.status = 'active' ORDER BY u.id`);
   return rows.map(map);
 }
 
+/** หน้าโดเนทสาธารณะ: เฉพาะบัญชีที่ใช้งานได้ (ไม่รวมรออนุมัติ/ถูกระงับ) */
 export async function findStreamer(username: string) {
-  const [r] = await query<Row>(`${SELECT} WHERE u.username = ?`, [username.toLowerCase()]);
+  const [r] = await query<Row>(`${SELECT} WHERE u.username = ? AND u.status = 'active'`, [username.toLowerCase()]);
   return r ? map(r) : undefined;
 }
 
@@ -71,7 +72,7 @@ export async function findStreamerById(id: number) {
 
 export async function findStreamerByWidgetToken(token: string) {
   if (!token) return undefined;
-  const [r] = await query<Row>(`${SELECT} WHERE u.widget_token = ?`, [token]);
+  const [r] = await query<Row>(`${SELECT} WHERE u.widget_token = ? AND u.status = 'active'`, [token]);
   return r ? map(r) : undefined;
 }
 

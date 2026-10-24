@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { currentUser } from "@/lib/auth";
-import { countAdmins, deleteUser, setPassword, setRole, validatePassword } from "@/lib/users";
+import { countAdmins, deleteUser, setPassword, setRole, setStatus, validatePassword } from "@/lib/users";
 
 export const runtime = "nodejs";
 
@@ -11,12 +11,12 @@ async function admin() {
   return me?.role === "admin" ? me : null;
 }
 
-/** แก้ role หรือรีเซ็ตรหัสผ่าน */
+/** แก้ role / สถานะ (อนุมัติ ระงับ เปิดใช้) หรือรีเซ็ตรหัสผ่าน */
 export async function PATCH(req: Request, ctx: Ctx) {
   const me = await admin();
   if (!me) return NextResponse.json({ message: "เฉพาะผู้ดูแลเท่านั้น" }, { status: 403 });
   const id = Number((await ctx.params).id);
-  const b = (await req.json().catch(() => ({}))) as { password?: string; role?: string };
+  const b = (await req.json().catch(() => ({}))) as { password?: string; role?: string; status?: string };
 
   if (b.password !== undefined) {
     const err = validatePassword(String(b.password));
@@ -29,6 +29,10 @@ export async function PATCH(req: Request, ctx: Ctx) {
       return NextResponse.json({ message: "ต้องมีผู้ดูแลอย่างน้อย 1 คน" }, { status: 400 });
     }
     await setRole(id, b.role);
+  }
+  if (b.status === "active" || b.status === "suspended") {
+    if (id === me.id) return NextResponse.json({ message: "เปลี่ยนสถานะบัญชีตัวเองไม่ได้" }, { status: 400 });
+    await setStatus(id, b.status);
   }
   return NextResponse.json({ ok: true });
 }

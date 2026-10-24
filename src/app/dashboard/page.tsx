@@ -41,6 +41,14 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
             <h1 className="display text-[40px]">สวัสดี {streamer.displayName}</h1>
             <LogoutButton />
           </div>
+          {user.status === "pending" && (
+            <div className="mt-6 rounded-[20px] border border-[#f5a623]/40 bg-[#f5a623]/10 px-5 py-4">
+              <p className="font-semibold text-ink">บัญชีรอผู้ดูแลอนุมัติ</p>
+              <p className="mt-1 text-[15px] text-ink-2">
+                ตั้งค่าพร้อมเพย์และเสียงแจ้งเตือนไว้ก่อนได้เลย หน้าโดเนท /{streamer.username} และวิดเจ็ตจะเปิดใช้หลังได้รับอนุมัติ
+              </p>
+            </div>
+          )}
           {welcome && !streamer.promptpayId && (
             <div className="mt-6 rounded-[20px] border border-red/30 bg-red-tint px-5 py-4">
               <p className="font-semibold text-ink">ยินดีต้อนรับ! เหลืออีกขั้นเดียว</p>
