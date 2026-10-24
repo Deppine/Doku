@@ -1,0 +1,13 @@
+node_modules
+.next
+.git
+.env
+.env.local
+.env.*.local
+data
+uploads
+README.md
+easydonate-analysis.md
+public/hero.webp
+*.tsbuildinfo
+next-env.d.ts

@@ -1,5 +1,7 @@
-# ฐานข้อมูลสำหรับพัฒนา: MySQL 8.4 + phpMyAdmin
-# เริ่ม:  docker compose up -d
+# ฐานข้อมูลสำหรับพัฒนา: MySQL 8.4 + phpMyAdmin (+ ตัวเว็บ ถ้าใส่ --profile app)
+# เริ่มเฉพาะฐานข้อมูล:  docker compose up -d
+# เริ่มทั้งระบบ:        docker compose --profile app up -d --build
+#   สร้างผู้ใช้ในคอนเทนเนอร์: docker compose exec web node scripts/create-user.mjs <username> <password> "<ชื่อ>" --admin
 # หยุด:  docker compose down        (ข้อมูลยังอยู่)
 # ล้าง:  docker compose down -v     (ลบข้อมูลทั้งหมด แล้วสร้างตารางใหม่ตอน up ครั้งถัดไป)
 services:
@@ -40,5 +42,29 @@ services:
       db:
         condition: service_healthy
 
+  # ตัวเว็บ (production build) เปิดเมื่อใส่ --profile app
+  web:
+    profiles: ["app"]
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_APP_NAME: Doku
+        NEXT_PUBLIC_BASE_URL: http://localhost:3000
+    container_name: doku-web
+    restart: unless-stopped
+    env_file:
+      - path: .env.local # SESSION_SECRET, SLIP_PROVIDER ฯลฯ
+        required: false
+    environment:
+      DATABASE_URL: mysql://donate:donatepass@db:3306/donate # ต่อฐานข้อมูลในเครือข่าย Docker
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - doku-uploads:/app/uploads # รูปสลิปและไฟล์เสียง ไม่หายเมื่อสร้างคอนเทนเนอร์ใหม่
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   donate-db:
+  doku-uploads:
