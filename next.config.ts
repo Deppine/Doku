@@ -8,7 +8,7 @@ const nextConfig: NextConfig = {
   // Vercel: ไฟล์ที่ไลบรารีอ่านสลิปโหลดตอนรัน (ไฟล์ภาษา + worker + wasm) ต้องติดไปกับฟังก์ชันด้วย
   outputFileTracingIncludes: {
     "/api/donate/*/slip": [
-      "./node_modules/@tesseract.js-data/eng/4.0.0/**",
+      "./node_modules/@tesseract.js-data/eng/4.0.0_best_int/**",
       "./node_modules/tesseract.js/src/**",
       "./node_modules/tesseract.js-core/*.{js,wasm}",
     ],

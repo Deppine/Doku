@@ -11,13 +11,15 @@ import jsQR from "jsqr";
 import { createWorker, type Worker } from "tesseract.js";
 import type { SlipResult } from "./slip";
 
-// ใช้ worker ตัวเดียวทั้งเซิร์ฟเวอร์ (สร้างครั้งแรกใช้เวลา ~1 วินาที)
+// ใช้ worker ตัวเดียวต่อเซิร์ฟเวอร์ (สร้างครั้งแรก ~0.5–2 วินาที แล้วใช้ซ้ำ)
+// ใช้ข้อมูลภาษาแบบ best_int (2.9 MB) แทนชุดเต็ม (10.9 MB): โหลดเร็วกว่า ~4 เท่า อ่านตัวเลขบนสลิปได้เท่ากัน
 const g = globalThis as unknown as { __ocrWorker?: Promise<Worker> };
-function getWorker() {
+export function getWorker() {
   if (!g.__ocrWorker) {
-    const langPath = path.join(/* turbopackIgnore: true */ process.cwd(), "node_modules", "@tesseract.js-data", "eng", "4.0.0");
+    const langPath = path.join(/* turbopackIgnore: true */ process.cwd(), "node_modules", "@tesseract.js-data", "eng", "4.0.0_best_int");
     // cacheMethod "none": ไม่เขียนไฟล์ cache ลงโฟลเดอร์โปรเจกต์ (กัน dev server รีโหลดวน)
     g.__ocrWorker = createWorker("eng", 1, { langPath, gzip: true, cacheMethod: "none" });
+    g.__ocrWorker.catch(() => (g.__ocrWorker = undefined)); // สร้างไม่สำเร็จ → ครั้งหน้าลองใหม่
   }
   return g.__ocrWorker;
 }
@@ -62,15 +64,26 @@ export function findMaskedAccounts(text: string): string[] {
     .filter((s) => /x/i.test(s) && /\d/.test(s));
 }
 
+/** ถอด QR: ลองจากรูปย่อก่อน (เร็ว) ถ้าไม่เจอค่อยใช้รูปเต็ม */
+async function readQr(buf: Buffer) {
+  for (const width of [1000, 0]) {
+    let pipe = sharp(buf).rotate();
+    if (width) pipe = pipe.resize({ width, withoutEnlargement: true });
+    const { data, info } = await pipe.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    const code = jsQR(new Uint8ClampedArray(data.buffer, data.byteOffset, data.length), info.width, info.height);
+    if (code) return parseSlipQr(code.data);
+  }
+  return null;
+}
+
 export async function verifyLocal(file: File, receiverId: string): Promise<SlipResult> {
   const buf = Buffer.from(await file.arrayBuffer());
+  const workerReady = getWorker(); // เริ่มเตรียม OCR ไปพร้อมกับอ่าน QR
 
   // 1) QR บนสลิป
-  let qr: ReturnType<typeof parseSlipQr> = null;
+  let qr: Awaited<ReturnType<typeof readQr>> = null;
   try {
-    const { data, info } = await sharp(buf).rotate().ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-    const code = jsQR(new Uint8ClampedArray(data.buffer, data.byteOffset, data.length), info.width, info.height);
-    if (code) qr = parseSlipQr(code.data);
+    qr = await readQr(buf);
   } catch {
     return { ok: false, reason: "เปิดไฟล์รูปไม่ได้ ลองบันทึกสลิปจากแอปธนาคารแล้วแนบใหม่" };
   }
@@ -78,9 +91,9 @@ export async function verifyLocal(file: File, receiverId: string): Promise<SlipR
     return { ok: false, reason: "ไม่พบ QR บนสลิป ใช้รูปสลิปจากแอปธนาคารแบบเต็มใบ ไม่ครอปและไม่ถ่ายหน้าจอซ้อน" };
   }
 
-  // 2) OCR หายอดและบัญชีผู้รับ
-  const img = await sharp(buf).rotate().grayscale().resize({ width: 2000, withoutEnlargement: false }).toBuffer();
-  const worker = await getWorker();
+  // 2) OCR หายอดและบัญชีผู้รับ (กว้าง 1400px พอสำหรับตัวเลขบนสลิป ใหญ่กว่านี้ช้าขึ้นแต่ไม่แม่นขึ้น)
+  const img = await sharp(buf).rotate().grayscale().resize({ width: 1400 }).toBuffer();
+  const worker = await workerReady;
   const {
     data: { text },
   } = await worker.recognize(img);

@@ -223,6 +223,11 @@ function PayStep({
   const mm = String(Math.floor(left / 60000)).padStart(2, "0");
   const ss = String(Math.floor((left % 60000) / 1000)).padStart(2, "0");
 
+  // ระหว่างผู้ชมกำลังโอน ให้เซิร์ฟเวอร์เตรียมตัวอ่านสลิปไว้ก่อน (ส่งสลิปแล้วตรวจเร็วขึ้น)
+  useEffect(() => {
+    fetch(`/api/donate/${payment.id}/slip`, { cache: "no-store" }).catch(() => {});
+  }, [payment.id]);
+
   // นับถอยหลัง + poll สถานะทุก 3 วินาที (เผื่อเปลี่ยนไปใช้ gateway ที่ยืนยันผ่าน webhook)
   useEffect(() => {
     const tick = setInterval(() => setNow(Date.now()), 1000);
@@ -258,7 +263,7 @@ function PayStep({
     setBusy(true);
     setError(null);
     const form = new FormData();
-    if (file) form.append("slip", file);
+    if (file) form.append("slip", await shrinkImage(file));
     if (isTest) {
       form.append("testAmount", test.amount);
       form.append("testReceiver", test.receiver);
@@ -423,4 +428,31 @@ function cleanAmount(raw: string) {
   let out = rest.length ? `${intPart}.${rest.join("").slice(0, 2)}` : intPart;
   if (Number(out) > MAX_DONATION) out = String(MAX_DONATION);
   return out;
+}
+
+/**
+ * ย่อรูปสลิปก่อนอัปโหลด (ด้านยาวไม่เกิน 2200px, แปลงเป็น JPEG) ส่งเร็วขึ้นมากบนเน็ตมือถือ และเซิร์ฟเวอร์อ่านเร็วขึ้น
+ * รูปเล็กอยู่แล้ว หรือย่อไม่ได้ (เช่น HEIC บางเครื่อง) → ส่งไฟล์เดิม
+ */
+async function shrinkImage(file: File): Promise<File> {
+  const MAX = 2200;
+  try {
+    if (!file.type.startsWith("image/") || file.size < 400 * 1024) return file;
+    const bmp = await createImageBitmap(file);
+    const scale = Math.min(1, MAX / Math.max(bmp.width, bmp.height));
+    if (scale === 1 && file.size < 1.5 * 1024 * 1024) return file;
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bmp.width * scale);
+    canvas.height = Math.round(bmp.height * scale);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return file;
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/jpeg", 0.92));
+    if (!blob || blob.size >= file.size) return file;
+    return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" });
+  } catch {
+    return file;
+  }
 }

@@ -8,8 +8,25 @@ export const runtime = "nodejs";
 
 const MAX_SIZE = 4 * 1024 * 1024; // Vercel รับ request ได้ไม่เกิน ~4.5 MB
 
+/**
+ * อุ่นเครื่องอ่านสลิป: หน้าโดเนทเรียกตอนโชว์ QR (ระหว่างผู้ชมกำลังโอนเงิน)
+ * เซิร์ฟเวอร์จะโหลด OCR รอไว้ พอส่งสลิปจริงจะไม่ต้องเริ่มจากศูนย์
+ */
+export async function GET() {
+  if (slipMode() === "local") {
+    const { getWorker } = await import("@/lib/slip-local");
+    await getWorker().catch(() => {});
+  }
+  return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
+}
+
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const started = performance.now();
+  const marks: string[] = [];
+  const mark = (name: string, from: number) => marks.push(`${name};dur=${Math.round(performance.now() - from)}`);
+
   const { id } = await ctx.params;
+  let t = performance.now();
   const session = await getSession(id);
   if (!session) return NextResponse.json({ message: "ไม่พบรายการนี้" }, { status: 404 });
   if (session.status === "EXPIRED") return NextResponse.json({ message: "QR หมดอายุแล้ว สร้างใหม่อีกครั้ง" }, { status: 410 });
@@ -27,39 +44,60 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
   const streamer = await findStreamerById(session.recipientId);
   if (!streamer?.promptpayId) return NextResponse.json({ message: "สตรีมเมอร์ยังไม่ได้ตั้งค่าบัญชีรับเงิน" }, { status: 409 });
+  mark("load", t);
 
-  // เก็บไฟล์ + บันทึกลง payment_slips
-  const saved = file ? await saveSlipFile(file) : { storedPath: "(test-no-file)", hash: "", originalName: null };
+  // อ่านสลิป และเก็บไฟล์ลงฐานข้อมูลไปพร้อมกัน (เดิมทำทีละอย่าง)
+  t = performance.now();
+  const [saved, result] = await Promise.all([
+    (async () => {
+      const r = file ? await saveSlipFile(file) : { storedPath: "(test-no-file)", hash: "", originalName: null };
+      mark("save", t);
+      return r;
+    })(),
+    (async () => {
+      const r = await getSlipVerifier(session.amount, streamer.promptpayId!).verify(file, form);
+      mark("read", t);
+      return r;
+    })(),
+  ]);
+
+  t = performance.now();
+  const reply = (body: object, status = 200) => {
+    mark("db", t);
+    marks.push(`total;dur=${Math.round(performance.now() - started)}`);
+    console.log(`[slip] ${id.slice(0, 8)} ${status} ${marks.join(" ")} region=${process.env.VERCEL_REGION ?? "local"}`);
+    return NextResponse.json(body, { status, headers: { "Server-Timing": marks.join(", ") } });
+  };
+
   if (saved.hash && (await isSlipFileUsed(saved.hash))) {
     const slipId = await addSlip(session.dbId, saved);
     await recordRejected(slipId, mode, "DUPLICATE_FILE");
-    return NextResponse.json({ message: "สลิปนี้ถูกใช้ไปแล้ว" }, { status: 409 });
+    return reply({ message: "สลิปนี้ถูกใช้ไปแล้ว" }, 409);
   }
   const slipId = await addSlip(session.dbId, { ...saved, hash: saved.hash || "" });
 
-  const result = await getSlipVerifier(session.amount, streamer.promptpayId).verify(file, form);
   if (!result.ok) {
     await recordRejected(slipId, mode, "UNREADABLE");
-    return NextResponse.json({ message: result.reason }, { status: 422 });
+    return reply({ message: result.reason }, 422);
   }
   const seen = { amount: result.amount, receiver: result.receiverAccount };
 
   // กันสลิปซ้ำ / ยอดไม่ตรง / โอนผิดบัญชี / สลิปเก่า
   if (await isTransRefUsed(result.transRef)) {
     await recordRejected(slipId, mode, "DUPLICATE_REF", seen);
-    return NextResponse.json({ message: "สลิปนี้ถูกใช้ไปแล้ว" }, { status: 409 });
+    return reply({ message: "สลิปนี้ถูกใช้ไปแล้ว" }, 409);
   }
   if (Math.abs(result.amount - session.amount) > 0.001) {
     await recordRejected(slipId, mode, "AMOUNT_MISMATCH", seen);
-    return NextResponse.json({ message: `ยอดในสลิป (${result.amount} บาท) ไม่ตรงกับที่ระบุ (${session.amount} บาท)` }, { status: 422 });
+    return reply({ message: `ยอดในสลิป (${result.amount} บาท) ไม่ตรงกับที่ระบุ (${session.amount} บาท)` }, 422);
   }
   if (!accountMatches(result.receiverAccount, streamer.promptpayId)) {
     await recordRejected(slipId, mode, "RECEIVER_MISMATCH", seen);
-    return NextResponse.json({ message: "บัญชีผู้รับในสลิปไม่ใช่ของสตรีมเมอร์คนนี้" }, { status: 422 });
+    return reply({ message: "บัญชีผู้รับในสลิปไม่ใช่ของสตรีมเมอร์คนนี้" }, 422);
   }
   if (result.paidAt && new Date(result.paidAt).getTime() < session.createdAt - 60_000) {
     await recordRejected(slipId, mode, "OLD_SLIP", seen);
-    return NextResponse.json({ message: "สลิปนี้โอนก่อนสร้างรายการ ใช้สลิปของรายการนี้เท่านั้น" }, { status: 422 });
+    return reply({ message: "สลิปนี้โอนก่อนสร้างรายการ ใช้สลิปของรายการนี้เท่านั้น" }, 422);
   }
 
   const done = await completeSession(session, {
@@ -69,7 +107,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     amount: result.amount,
     receiver: result.receiverAccount,
   });
-  if (done === "DUPLICATE") return NextResponse.json({ message: "สลิปนี้ถูกใช้ไปแล้ว" }, { status: 409 });
-  if (!done) return NextResponse.json({ message: "รายการนี้ปิดไปแล้ว" }, { status: 409 });
-  return NextResponse.json({ status: "SUCCESS" });
+  if (done === "DUPLICATE") return reply({ message: "สลิปนี้ถูกใช้ไปแล้ว" }, 409);
+  if (!done) return reply({ message: "รายการนี้ปิดไปแล้ว" }, 409);
+  return reply({ status: "SUCCESS" });
 }
