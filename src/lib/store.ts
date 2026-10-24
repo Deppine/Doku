@@ -6,10 +6,8 @@
  *   verified           → SUCCESS
  *   expired, rejected, refunded → EXPIRED
  *
- * Event bus ยังอยู่ในหน่วยความจำ (ใช้ได้กับเซิร์ฟเวอร์ตัวเดียว)
- * ถ้ารันหลายเครื่อง ให้เปลี่ยน emitAlert/onAlert ไปใช้ Redis pub/sub
+ * แจ้งเตือนไป widget ผ่านตาราง widget_events (ใช้ได้กับหลายเครื่อง / Vercel)
  */
-import { EventEmitter } from "node:events";
 import { randomUUID } from "node:crypto";
 import { db, exec, query, type RowDataPacket } from "./db";
 
@@ -188,13 +186,13 @@ export async function completeSession(
     conn.release();
   }
 
-  emitAlert(session.recipientId, {
+  await emitAlert(session.recipientId, {
     type: "donation",
     id: session.id,
     donorName: session.donorName,
     message: session.message,
     amount: session.amount,
-  });
+  }).catch((e) => console.error("ส่งแจ้งเตือนไป widget ไม่สำเร็จ", e)); // โดเนทสำเร็จแล้ว ไม่ให้ผู้โอนเห็น error
   return { ref: session.id, donorName: session.donorName, message: session.message, amount: session.amount, createdAt: Date.now() };
 }
 
@@ -224,26 +222,51 @@ export async function donationTotals(recipientId: number) {
   return { total: Number(r?.total ?? 0), count: Number(r?.n ?? 0) };
 }
 
-// ---------- event bus (alert → widget) ----------
-const g = globalThis as unknown as { __donateBus?: EventEmitter };
-const bus = g.__donateBus ?? (g.__donateBus = new EventEmitter().setMaxListeners(1000));
+// ---------- คิวแจ้งเตือน (alert → widget) ----------
+// เก็บในตาราง widget_events: ใช้ได้แม้เซิร์ฟเวอร์มีหลายเครื่อง (Vercel)
+// widget ดึงรายการที่ id มากกว่าที่เคยเห็นผ่าน /api/widget/stream
+
+export type WidgetEvent = { id: number; kind: "alert" | "settings" | "reload"; payload: unknown };
+
+async function pushEvent(userId: number, kind: WidgetEvent["kind"], payload: unknown) {
+  await exec("INSERT INTO widget_events (user_id, kind, payload) VALUES (?, ?, ?)", [userId, kind, JSON.stringify(payload)]);
+  // ล้างของเก่าเป็นครั้งคราว
+  if (Math.random() < 0.05) await exec("DELETE FROM widget_events WHERE created_at < NOW() - INTERVAL 1 DAY").catch(() => {});
+}
 
 export function emitAlert(userId: number, event: AlertEvent) {
-  bus.emit(`alert:${userId}`, event);
-}
-export function onAlert(userId: number, fn: (e: AlertEvent) => void) {
-  bus.on(`alert:${userId}`, fn);
-  return () => bus.off(`alert:${userId}`, fn);
-}
-export function listenerCount(userId: number) {
-  return bus.listenerCount(`alert:${userId}`);
+  return pushEvent(userId, "alert", event);
 }
 
-// การตั้งค่าเสียงเปลี่ยน → ส่งไป widget ที่เปิดอยู่ทันที
+/** การตั้งค่าเสียงเปลี่ยน → widget ที่เปิดอยู่ได้รับทันที */
 export function emitSettings(userId: number, settings: unknown) {
-  bus.emit(`settings:${userId}`, settings);
+  return pushEvent(userId, "settings", settings);
 }
-export function onSettings(userId: number, fn: (s: unknown) => void) {
-  bus.on(`settings:${userId}`, fn);
-  return () => bus.off(`settings:${userId}`, fn);
+
+/** id ล่าสุดของผู้ใช้ (widget ที่เพิ่งเปิดจะเริ่มนับจากตรงนี้ ไม่เล่น alert ย้อนหลัง) */
+export async function latestEventId(userId: number) {
+  const [r] = await query<RowDataPacket & { id: number | null }>("SELECT MAX(id) AS id FROM widget_events WHERE user_id = ?", [userId]);
+  return Number(r?.id ?? 0);
+}
+
+export async function eventsAfter(userId: number, afterId: number): Promise<WidgetEvent[]> {
+  const rows = await query<RowDataPacket & { id: number; kind: WidgetEvent["kind"]; payload: unknown }>(
+    // ไม่ส่งของที่ค้างนานเกิน 10 นาที (เช่น OBS ปิดไปนาน) กันแจ้งเตือนเก่าเด้งรัว
+    "SELECT id, kind, payload FROM widget_events WHERE user_id = ? AND id > ? AND created_at > NOW() - INTERVAL 10 MINUTE ORDER BY id LIMIT 20",
+    [userId, afterId]
+  );
+  return rows.map((r) => ({ id: Number(r.id), kind: r.kind, payload: typeof r.payload === "string" ? JSON.parse(r.payload) : r.payload }));
+}
+
+export async function markWidgetSeen(userId: number) {
+  await exec("UPDATE users SET widget_seen_at = NOW() WHERE id = ?", [userId]);
+}
+
+/** widget ใน OBS ต่ออยู่ไหม (เห็นภายใน 40 วินาทีล่าสุด) */
+export async function widgetOnline(userId: number) {
+  const [r] = await query<RowDataPacket & { ok: number }>(
+    "SELECT widget_seen_at > NOW() - INTERVAL 40 SECOND AS ok FROM users WHERE id = ?",
+    [userId]
+  );
+  return Number(r?.ok ?? 0) === 1;
 }

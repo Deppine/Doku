@@ -6,7 +6,7 @@ import { saveSlipFile } from "@/lib/uploads";
 
 export const runtime = "nodejs";
 
-const MAX_SIZE = 5 * 1024 * 1024;
+const MAX_SIZE = 4 * 1024 * 1024; // Vercel รับ request ได้ไม่เกิน ~4.5 MB
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
@@ -22,7 +22,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const mode = slipMode();
   // โหมด test ไม่บังคับแนบรูป (ใช้ข้อมูลที่กรอกแทน)
   if (!file && mode !== "test") return NextResponse.json({ message: "แนบรูปสลิปก่อนกดส่ง" }, { status: 400 });
-  if (file && file.size > MAX_SIZE) return NextResponse.json({ message: "รูปใหญ่เกิน 5 MB" }, { status: 400 });
+  if (file && file.size > MAX_SIZE) return NextResponse.json({ message: "รูปใหญ่เกิน 4 MB" }, { status: 400 });
   if (file && !file.type.startsWith("image/")) return NextResponse.json({ message: "รองรับเฉพาะไฟล์รูปภาพ" }, { status: 400 });
 
   const streamer = await findStreamerById(session.recipientId);

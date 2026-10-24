@@ -11,7 +11,7 @@ const MAX = 1024 * 1024; // 1 MB
 
 async function broadcast(userId: number) {
   const [s, st] = await Promise.all([findStreamerById(userId), getSoundSettings(userId)]);
-  if (s) emitSettings(userId, toClient(st, widgetSoundUrl(s.widgetToken, st.soundFile)));
+  if (s) await emitSettings(userId, toClient(st, widgetSoundUrl(s.widgetToken, st.soundFile)));
 }
 
 /** ฟังไฟล์เสียงของตัวเองในแดชบอร์ด */

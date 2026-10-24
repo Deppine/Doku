@@ -25,12 +25,19 @@ export function AlertWidget({ token, tts, variant }: { token: string; tts: boole
       return;
     }
     const es = new EventSource(`/api/widget/stream?token=${encodeURIComponent(token)}`);
+    let first = true;
+    let offlineTimer: ReturnType<typeof setTimeout> | undefined;
     es.addEventListener("ready", (e) => {
       const data = JSON.parse((e as MessageEvent).data);
       if (data.sound) sound.current = data.sound;
+      clearTimeout(offlineTimer);
       setStatus("online");
-      setShowStatus(true);
-      setTimeout(() => setShowStatus(false), 4000);
+      // เซิร์ฟเวอร์ตัดการเชื่อมต่อเป็นรอบ ๆ แล้วต่อใหม่เอง — โชว์ป้ายเฉพาะครั้งแรก
+      if (first) {
+        first = false;
+        setShowStatus(true);
+        setTimeout(() => setShowStatus(false), 4000);
+      } else setShowStatus(false);
     });
     // ตั้งค่าเสียงในแดชบอร์ดแล้วมีผลทันที ไม่ต้องรีเฟรช OBS
     es.addEventListener("settings", (e) => {
@@ -40,11 +47,18 @@ export function AlertWidget({ token, tts, variant }: { token: string; tts: boole
       queue.current.push(JSON.parse((e as MessageEvent).data));
       playNext();
     });
+    // EventSource ต่อใหม่เองอัตโนมัติ ถ้าต่อไม่ติดเกิน 8 วินาทีค่อยโชว์ว่าหลุด
     es.onerror = () => {
-      setStatus("offline");
-      setShowStatus(true);
-    }; // EventSource จะต่อใหม่เองอัตโนมัติ
-    return () => es.close();
+      clearTimeout(offlineTimer);
+      offlineTimer = setTimeout(() => {
+        setStatus("offline");
+        setShowStatus(true);
+      }, first ? 0 : 8000);
+    };
+    return () => {
+      clearTimeout(offlineTimer);
+      es.close();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { currentUserId } from "@/lib/auth";
-import { emitAlert, listenerCount } from "@/lib/store";
+import { emitAlert, widgetOnline } from "@/lib/store";
 
 export const runtime = "nodejs";
 
@@ -9,8 +9,8 @@ export async function POST() {
   const userId = await currentUserId();
   if (!userId) return NextResponse.json({ message: "เข้าสู่ระบบก่อน" }, { status: 401 });
 
-  const online = listenerCount(userId);
-  emitAlert(userId, {
+  const online = (await widgetOnline(userId)) ? 1 : 0;
+  await emitAlert(userId, {
     type: "donation",
     id: randomUUID(),
     donorName: "ทดสอบระบบ",

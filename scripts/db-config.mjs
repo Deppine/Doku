@@ -6,7 +6,10 @@
  * รองรับฐานข้อมูลบนคลาวด์ที่บังคับ SSL เช่น Aiven:
  *   DATABASE_URL=mysql://avnadmin:รหัส@xxx.aivencloud.com:12345/defaultdb?ssl-mode=REQUIRED
  *   DATABASE_CA=<เนื้อหาไฟล์ ca.pem>   (ใส่ทั้งก้อน หรือแทนขึ้นบรรทัดด้วย \n ก็ได้)
+ *   หรือ DATABASE_CA=ca.pem             (ชื่อไฟล์ในโฟลเดอร์โปรเจกต์ สะดวกตอนรันในเครื่อง)
  */
+import { readFileSync } from "node:fs";
+import path from "node:path";
 export function dbConfig(url = process.env.DATABASE_URL) {
   if (!url) throw new Error("ยังไม่ได้ตั้ง DATABASE_URL");
   const u = new URL(url);
@@ -14,7 +17,7 @@ export function dbConfig(url = process.env.DATABASE_URL) {
   u.searchParams.delete("ssl-mode");
   u.searchParams.delete("sslmode");
 
-  const ca = process.env.DATABASE_CA?.replace(/\\n/g, "\n").trim();
+  const ca = loadCa(process.env.DATABASE_CA);
   let ssl;
   if (ca) {
     ssl = { ca, rejectUnauthorized: true }; // เข้ารหัส + ตรวจใบรับรองเซิร์ฟเวอร์
@@ -33,4 +36,12 @@ export function dbConfig(url = process.env.DATABASE_URL) {
     charset: "utf8mb4",
     decimalNumbers: true, // DECIMAL → number
   };
+}
+
+function loadCa(v) {
+  const raw = v?.trim();
+  if (!raw) return undefined;
+  if (raw.includes("BEGIN CERTIFICATE")) return raw.replace(/\\n/g, "\n");
+  // ไม่ใช่เนื้อหาใบรับรอง → ถือเป็นชื่อไฟล์
+  return readFileSync(path.resolve(process.cwd(), raw), "utf8").trim();
 }

@@ -15,3 +15,6 @@ uploads
 README.md
 easydonate-analysis.md
 public/hero.webp
+
+# ใบรับรองฐานข้อมูล (เช่น ca.pem จาก Aiven)
+*.pem
