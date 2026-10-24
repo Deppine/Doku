@@ -11,6 +11,14 @@ const nextConfig: NextConfig = {
       "./node_modules/@tesseract.js-data/eng/4.0.0_best_int/**",
       "./node_modules/tesseract.js/src/**",
       "./node_modules/tesseract.js-core/*.{js,wasm}",
+      // worker ของ tesseract ถูกเปิดเป็น thread แยก Vercel จึงไม่รู้ว่าต้องแนบไลบรารีพวกนี้ (ขาด = ค้างจน 504)
+      "./node_modules/bmp-js/**",
+      "./node_modules/wasm-feature-detect/**",
+      "./node_modules/zlibjs/**",
+      "./node_modules/idb-keyval/**",
+      "./node_modules/is-url/**",
+      "./node_modules/node-fetch/**",
+      "./node_modules/regenerator-runtime/**",
     ],
   },
   // OBS โหลด widget ผ่าน browser source — ห้าม cache stream

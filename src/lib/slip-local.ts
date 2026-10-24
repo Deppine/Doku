@@ -13,15 +13,53 @@ import type { SlipResult } from "./slip";
 
 // ใช้ worker ตัวเดียวต่อเซิร์ฟเวอร์ (สร้างครั้งแรก ~0.5–2 วินาที แล้วใช้ซ้ำ)
 // ใช้ข้อมูลภาษาแบบ best_int (2.9 MB) แทนชุดเต็ม (10.9 MB): โหลดเร็วกว่า ~4 เท่า อ่านตัวเลขบนสลิปได้เท่ากัน
-const g = globalThis as unknown as { __ocrWorker?: Promise<Worker> };
+const g = globalThis as unknown as { __ocrWorker?: Promise<Worker>; __ocrStatus?: string };
 export function getWorker() {
   if (!g.__ocrWorker) {
     const langPath = path.join(/* turbopackIgnore: true */ process.cwd(), "node_modules", "@tesseract.js-data", "eng", "4.0.0_best_int");
+    g.__ocrStatus = "starting";
     // cacheMethod "none": ไม่เขียนไฟล์ cache ลงโฟลเดอร์โปรเจกต์ (กัน dev server รีโหลดวน)
-    g.__ocrWorker = createWorker("eng", 1, { langPath, gzip: true, cacheMethod: "none" });
-    g.__ocrWorker.catch(() => (g.__ocrWorker = undefined)); // สร้างไม่สำเร็จ → ครั้งหน้าลองใหม่
+    const p = createWorker("eng", 1, {
+      langPath,
+      gzip: true,
+      cacheMethod: "none",
+      logger: (m: { status?: string }) => void (g.__ocrStatus = m.status),
+      // ไม่ใส่ตัวนี้ tesseract จะโยน error ออกนอก request ทำให้ทั้งเซิร์ฟเวอร์ล่ม/ค้าง
+      errorHandler: (e: unknown) => {
+        g.__ocrStatus = `error: ${String(e).slice(0, 200)}`;
+        console.error("[ocr]", e);
+      },
+    });
+    g.__ocrWorker = p;
+    p.catch(() => {
+      if (g.__ocrWorker === p) g.__ocrWorker = undefined; // สร้างไม่สำเร็จ → ครั้งหน้าลองใหม่
+    });
   }
   return g.__ocrWorker;
+}
+
+export function ocrStatus() {
+  return g.__ocrStatus ?? "idle";
+}
+
+/** รอไม่เกิน ms ถ้าเกินให้ล้าง worker ทิ้ง (ครั้งหน้าสร้างใหม่) แล้วแจ้งว่าขั้นไหนค้าง */
+async function withTimeout<T>(p: Promise<T>, ms: number, stage: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      p,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`OCR_TIMEOUT ${stage} (${ocrStatus()})`)), ms);
+      }),
+    ]);
+  } catch (e) {
+    const w = g.__ocrWorker;
+    g.__ocrWorker = undefined;
+    w?.then((x) => x.terminate()).catch(() => {});
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /** ถอด TLV แบบ EMVCo */
@@ -79,6 +117,7 @@ async function readQr(buf: Buffer) {
 export async function verifyLocal(file: File, receiverId: string): Promise<SlipResult> {
   const buf = Buffer.from(await file.arrayBuffer());
   const workerReady = getWorker(); // เริ่มเตรียม OCR ไปพร้อมกับอ่าน QR
+  workerReady.catch(() => {}); // ข้อผิดพลาดจัดการตอน await ด้านล่าง
 
   // 1) QR บนสลิป
   let qr: Awaited<ReturnType<typeof readQr>> = null;
@@ -93,10 +132,16 @@ export async function verifyLocal(file: File, receiverId: string): Promise<SlipR
 
   // 2) OCR หายอดและบัญชีผู้รับ (กว้าง 1400px พอสำหรับตัวเลขบนสลิป ใหญ่กว่านี้ช้าขึ้นแต่ไม่แม่นขึ้น)
   const img = await sharp(buf).rotate().grayscale().resize({ width: 1400 }).toBuffer();
-  const worker = await workerReady;
-  const {
-    data: { text },
-  } = await worker.recognize(img);
+  let text: string;
+  try {
+    const worker = await withTimeout(workerReady, 20_000, "init");
+    ({
+      data: { text },
+    } = await withTimeout(worker.recognize(img), 25_000, "recognize"));
+  } catch (e) {
+    console.error("[slip] OCR", (e as Error).message);
+    return { ok: false, reason: "ระบบอ่านสลิปขัดข้องชั่วคราว ลองกดส่งสลิปอีกครั้งในไม่กี่วินาที" };
+  }
 
   const amount = findAmount(text);
   if (amount === null) return { ok: false, reason: "อ่านยอดเงินบนสลิปไม่ได้ ลองแนบรูปที่ชัดกว่านี้" };
