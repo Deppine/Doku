@@ -1,0 +1,233 @@
+@import "tailwindcss";
+
+/* ธีมสี: ค่าใน @theme คือโหมดสว่าง ส่วนโหมดมืดเขียนทับตัวแปรเดียวกันด้านล่าง */
+@theme {
+  --color-page: #ffffff; /* พื้นหลังหน้า */
+  --color-surface: #ffffff; /* การ์ด/กล่องบนพื้นเทา */
+  --color-fill: rgb(0 0 0 / 0.06); /* พื้นปุ่มแบ่งส่วน, สวิตช์ปิด */
+  --color-fill-hover: #ececef;
+  --color-chip: #ffffff; /* ปุ่มที่เลือกอยู่ในแถบแบ่งส่วน */
+  --color-red: #e10600;
+  --color-red-press: #b80500;
+  --color-red-tint: #fff0ef;
+  --color-ink: #1d1d1f;
+  --color-ink-2: #6e6e73;
+  --color-ink-3: #86868b;
+  --color-paper: #f5f5f7;
+  --color-line: #d2d2d7;
+  --font-sans: "Anuphan", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+  --ease-apple: cubic-bezier(0.28, 0.11, 0.32, 1);
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+  /* โหมดมืด: ตามระบบ ยกเว้นผู้ใช้เลือกสว่างเอง หรือเลือกมืดเอง (data-theme บน <html>) */
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --color-page: #000000;
+    --color-surface: #1c1c1e;
+    --color-fill: rgb(255 255 255 / 0.1);
+    --color-fill-hover: #2c2c2e;
+    --color-chip: #48484a;
+    --color-red: #ff3b30;
+    --color-red-press: #ff6259;
+    --color-red-tint: #3a1513;
+    --color-ink: #f5f5f7;
+    --color-ink-2: #a1a1a6;
+    --color-ink-3: #8e8e93;
+    --color-paper: #111113;
+    --color-line: #38383a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --color-page: #000000;
+      --color-surface: #1c1c1e;
+      --color-fill: rgb(255 255 255 / 0.1);
+      --color-fill-hover: #2c2c2e;
+      --color-chip: #48484a;
+      --color-red: #ff3b30;
+      --color-red-press: #ff6259;
+      --color-red-tint: #3a1513;
+      --color-ink: #f5f5f7;
+      --color-ink-2: #a1a1a6;
+      --color-ink-3: #8e8e93;
+      --color-paper: #111113;
+      --color-line: #38383a;
+    }
+  }
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    @apply bg-page text-ink font-sans;
+    font-size: 17px;
+    line-height: 1.47;
+    letter-spacing: -0.01em;
+  }
+  :focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--color-red) 45%, transparent);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background: var(--color-red-tint);
+    color: var(--color-red-press);
+  }
+}
+
+@layer components {
+  /* หัวข้อใหญ่แบบหน้า product ของ Apple: ตัวหนา ช่องไฟแคบ */
+  .display {
+    font-weight: 700;
+    letter-spacing: -0.035em;
+    line-height: 1.05;
+  }
+  .amount {
+    font-weight: 700;
+    letter-spacing: -0.05em;
+    line-height: 0.95;
+    font-variant-numeric: tabular-nums;
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-full bg-red px-6 py-3.5 text-[17px] font-semibold text-white transition-[background-color,transform] duration-200 hover:bg-red-press active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-line;
+  }
+  .btn-quiet {
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-5 py-3 text-[15px] font-medium text-red transition-colors hover:bg-red-tint;
+  }
+  .link {
+    @apply text-red underline-offset-4 hover:underline;
+  }
+  /* กลุ่มฟอร์มแบบ iOS Settings: แถวขาวบนพื้นเทา มีเส้นคั่นบาง ๆ */
+  .group-inset {
+    @apply overflow-hidden rounded-2xl bg-surface;
+  }
+  .group-inset > * + * {
+    box-shadow: inset 0 0.5px 0 var(--color-line);
+  }
+  .row-field {
+    @apply block w-full bg-transparent px-4 py-3.5 text-[17px] text-ink placeholder:text-ink-3 focus:outline-none;
+  }
+  .glass {
+    background: color-mix(in srgb, var(--color-page) 72%, transparent);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+  }
+}
+
+@keyframes alert-in {
+  0% { opacity: 0; transform: translateY(-24px) scale(0.96); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes alert-out {
+  to { opacity: 0; transform: translateY(-12px) scale(0.98); }
+}
+@keyframes check-draw {
+  to { stroke-dashoffset: 0; }
+}
+.alert-in { animation: alert-in 520ms var(--ease-apple) both; }
+.alert-out { animation: alert-out 360ms var(--ease-apple) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .alert-in, .alert-out { animation-duration: 1ms; }
+  * { transition-duration: 1ms !important; }
+}
+
+/* เมนูมือถือ: เลื่อนลงจากใต้แถบเมนู */
+@keyframes menu-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: none; }
+}
+.menu-in { animation: menu-in 320ms var(--ease-apple) both; }
+@media (prefers-reduced-motion: reduce) { .menu-in { animation-duration: 1ms; } }
+
+/* แจ้งเตือนแบบตัวอักษร: เด้งขยายเล็กน้อย */
+@keyframes pop-in {
+  0% { opacity: 0; transform: scale(0.82); }
+  60% { opacity: 1; transform: scale(1.04); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes pop-out {
+  to { opacity: 0; transform: scale(0.96); }
+}
+.pop-in { animation: pop-in 560ms var(--ease-apple) both; }
+.pop-out { animation: pop-out 320ms ease-in both; }
+@media (prefers-reduced-motion: reduce) { .pop-in, .pop-out { animation-duration: 1ms; } }
+
+/* ---------- พื้นหลังหัวหน้าแรก ---------- */
+.hero-bg {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  --glow-a: rgb(225 6 0 / 0.16);
+  --glow-b: rgb(255 120 90 / 0.14);
+  --pixel: rgb(29 29 31 / 0.10);
+}
+:root[data-theme="dark"] .hero-bg {
+  --glow-a: rgb(255 59 48 / 0.30);
+  --glow-b: rgb(120 30 80 / 0.35);
+  --pixel: rgb(255 255 255 / 0.09);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .hero-bg {
+    --glow-a: rgb(255 59 48 / 0.30);
+    --glow-b: rgb(120 30 80 / 0.35);
+    --pixel: rgb(255 255 255 / 0.09);
+  }
+}
+
+/* แสงเรือง 2 ดวง ลอยช้า ๆ หลังหัวข้อ */
+.hero-glow {
+  position: absolute;
+  inset: -20% -10% 0;
+}
+.hero-glow::before,
+.hero-glow::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(70px);
+  will-change: transform;
+}
+.hero-glow::before {
+  width: min(900px, 90vw);
+  height: 520px;
+  left: 50%;
+  top: 4%;
+  translate: -50% 0;
+  background: radial-gradient(closest-side, var(--glow-a), transparent);
+  animation: glow-drift-a 18s ease-in-out infinite alternate;
+}
+.hero-glow::after {
+  width: min(620px, 70vw);
+  height: 460px;
+  left: 8%;
+  top: 46%;
+  background: radial-gradient(closest-side, var(--glow-b), transparent);
+  animation: glow-drift-b 22s ease-in-out infinite alternate;
+}
+@keyframes glow-drift-a {
+  to { transform: translate(6%, 8%) scale(1.08); }
+}
+@keyframes glow-drift-b {
+  to { transform: translate(40%, -12%) scale(0.92); }
+}
+
+/* จุดพิกเซลแบบจอ LED จางออกจากกลางจอ */
+.hero-pixels {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(var(--pixel) 1.1px, transparent 1.3px);
+  background-size: 22px 22px;
+  background-position: center top;
+  mask-image: radial-gradient(70% 60% at 50% 30%, #000 30%, transparent 100%);
+  -webkit-mask-image: radial-gradient(70% 60% at 50% 30%, #000 30%, transparent 100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-glow::before, .hero-glow::after { animation: none; }
+}

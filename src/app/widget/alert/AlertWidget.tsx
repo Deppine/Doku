@@ -1,0 +1,87 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { AlertCard, type AlertData } from "@/components/AlertCard";
+import { AlertClassic } from "@/components/AlertClassic";
+import { DEFAULT_SOUND, playAlert, type AlertSoundSettings } from "@/lib/alert-sound";
+
+type Incoming = AlertData & { id: string; test?: boolean };
+
+const SHOW_MS = 7000; // แสดงค้างต่อ 1 รายการ
+const GAP_MS = 800; // เว้นระยะระหว่างรายการ
+
+export function AlertWidget({ token, tts, variant }: { token: string; tts: boolean; variant: "classic" | "card" }) {
+  const [current, setCurrent] = useState<Incoming | null>(null);
+  const [leaving, setLeaving] = useState(false);
+  const [status, setStatus] = useState<"connecting" | "online" | "offline">("connecting");
+  const [showStatus, setShowStatus] = useState(true);
+  const queue = useRef<Incoming[]>([]);
+  const playing = useRef(false);
+  const sound = useRef<AlertSoundSettings>(DEFAULT_SOUND);
+
+  useEffect(() => {
+    if (!token) {
+      setStatus("offline");
+      return;
+    }
+    const es = new EventSource(`/api/widget/stream?token=${encodeURIComponent(token)}`);
+    es.addEventListener("ready", (e) => {
+      const data = JSON.parse((e as MessageEvent).data);
+      if (data.sound) sound.current = data.sound;
+      setStatus("online");
+      setShowStatus(true);
+      setTimeout(() => setShowStatus(false), 4000);
+    });
+    // ตั้งค่าเสียงในแดชบอร์ดแล้วมีผลทันที ไม่ต้องรีเฟรช OBS
+    es.addEventListener("settings", (e) => {
+      sound.current = JSON.parse((e as MessageEvent).data);
+    });
+    es.addEventListener("alert", (e) => {
+      queue.current.push(JSON.parse((e as MessageEvent).data));
+      playNext();
+    });
+    es.onerror = () => {
+      setStatus("offline");
+      setShowStatus(true);
+    }; // EventSource จะต่อใหม่เองอัตโนมัติ
+    return () => es.close();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  function playNext() {
+    if (playing.current) return;
+    const next = queue.current.shift();
+    if (!next) return;
+    playing.current = true;
+    setLeaving(false);
+    setCurrent(next);
+    playAlert(sound.current, next, tts);
+
+    setTimeout(() => setLeaving(true), SHOW_MS);
+    setTimeout(() => {
+      setCurrent(null);
+      playing.current = false;
+      setTimeout(playNext, GAP_MS);
+    }, SHOW_MS + 360);
+  }
+
+  return (
+    <main className={`flex min-h-dvh items-start justify-center ${variant === "classic" ? "pt-[6vh]" : "pt-10"}`}>
+      {current &&
+        (variant === "classic" ? (
+          <AlertClassic key={current.id} data={current} className={leaving ? "pop-out" : "pop-in"} />
+        ) : (
+          <AlertCard key={current.id} data={current} className={leaving ? "alert-out" : "alert-in"} />
+        ))}
+      {showStatus && !current && (
+        <p
+          className={`fixed bottom-4 left-4 rounded-full px-3 py-1.5 text-[13px] font-medium text-white ${
+            status === "online" ? "bg-[#1f9d55]" : status === "connecting" ? "bg-ink-3" : "bg-red"
+          }`}
+        >
+          {status === "online" ? "วิดเจ็ตเชื่อมต่อแล้ว" : status === "connecting" ? "กำลังเชื่อมต่อ…" : "เชื่อมต่อไม่ได้ ตรวจลิงก์วิดเจ็ต"}
+        </p>
+      )}
+    </main>
+  );
+}

@@ -1,0 +1,17 @@
+# dependencies / build
+node_modules
+.next
+*.tsbuildinfo
+next-env.d.ts
+
+# ความลับและข้อมูลในเครื่อง (ห้ามขึ้น git)
+.env
+.env.local
+.env.*.local
+data
+uploads
+
+# ไฟล์ที่ไม่เผยแพร่
+README.md
+easydonate-analysis.md
+public/hero.webp

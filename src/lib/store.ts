@@ -1,0 +1,249 @@
+/**
+ * รายการโดเนท (ตาราง donations / payment_slips / payment_verifications) + event bus สำหรับ alert
+ *
+ * สถานะใน DB → สถานะที่หน้าเว็บเห็น
+ *   pending, submitted → PENDING   (รอโอน / แนบสลิปแล้วแต่ยังไม่ผ่าน แนบใหม่ได้จนหมดเวลา)
+ *   verified           → SUCCESS
+ *   expired, rejected, refunded → EXPIRED
+ *
+ * Event bus ยังอยู่ในหน่วยความจำ (ใช้ได้กับเซิร์ฟเวอร์ตัวเดียว)
+ * ถ้ารันหลายเครื่อง ให้เปลี่ยน emitAlert/onAlert ไปใช้ Redis pub/sub
+ */
+import { EventEmitter } from "node:events";
+import { randomUUID } from "node:crypto";
+import { db, exec, query, type RowDataPacket } from "./db";
+
+export type SessionStatus = "PENDING" | "SUCCESS" | "EXPIRED";
+
+export type DonationSession = {
+  id: string; // donation_ref
+  dbId: number;
+  recipientId: number;
+  donorName: string;
+  message: string;
+  amount: number;
+  status: SessionStatus;
+  createdAt: number; // ms
+  expiresAt: number; // ms
+};
+
+export type Donation = {
+  ref: string;
+  donorName: string;
+  message: string;
+  amount: number;
+  createdAt: number;
+};
+
+export type AlertEvent = {
+  type: "donation";
+  id: string;
+  donorName: string;
+  message: string;
+  amount: number;
+  test?: boolean;
+};
+
+const TTL_MIN = Math.max(1, Number(process.env.SESSION_TTL_MINUTES ?? 15));
+
+export async function createSession(input: {
+  recipientId: number;
+  donorName: string;
+  message: string;
+  amount: number;
+  payload: string;
+}) {
+  const ref = randomUUID();
+  await exec(
+    `INSERT INTO donations (donation_ref, recipient_user_id, donor_name, message, expected_amount, status, expires_at, qr_payload)
+     VALUES (?, ?, ?, ?, ?, 'pending', DATE_ADD(CURRENT_TIMESTAMP, INTERVAL ? MINUTE), ?)`,
+    [ref, input.recipientId, input.donorName, input.message, input.amount, TTL_MIN, input.payload]
+  );
+  return (await getSession(ref))!;
+}
+
+type SessionRow = RowDataPacket & {
+  id: number;
+  donation_ref: string;
+  recipient_user_id: number;
+  donor_name: string | null;
+  message: string | null;
+  expected_amount: number;
+  status: string;
+  created_ms: number;
+  expires_ms: number | null;
+  expired_now: number;
+};
+
+export async function getSession(ref: string): Promise<DonationSession | undefined> {
+  const [r] = await query<SessionRow>(
+    `SELECT id, donation_ref, recipient_user_id, donor_name, message, expected_amount, status,
+            UNIX_TIMESTAMP(created_at) * 1000 AS created_ms,
+            UNIX_TIMESTAMP(expires_at) * 1000 AS expires_ms,
+            (expires_at IS NOT NULL AND expires_at < CURRENT_TIMESTAMP) AS expired_now
+     FROM donations WHERE donation_ref = ?`,
+    [ref]
+  );
+  if (!r) return undefined;
+
+  let status = r.status;
+  if ((status === "pending" || status === "submitted") && Number(r.expired_now) === 1) {
+    await exec("UPDATE donations SET status = 'expired' WHERE id = ? AND status IN ('pending','submitted')", [r.id]);
+    status = "expired";
+  }
+  return {
+    id: r.donation_ref,
+    dbId: Number(r.id),
+    recipientId: Number(r.recipient_user_id),
+    donorName: r.donor_name ?? "ไม่ระบุชื่อ",
+    message: r.message ?? "",
+    amount: Number(r.expected_amount),
+    status: status === "verified" ? "SUCCESS" : status === "pending" || status === "submitted" ? "PENDING" : "EXPIRED",
+    createdAt: Number(r.created_ms),
+    expiresAt: Number(r.expires_ms ?? r.created_ms),
+  };
+}
+
+/** บันทึกไฟล์สลิปที่แนบ และเปลี่ยนสถานะเป็น submitted */
+export async function addSlip(dbId: number, file: { originalName: string | null; storedPath: string; hash: string }) {
+  const res = await exec(
+    "INSERT INTO payment_slips (donation_id, original_file_name, stored_file_path, file_hash) VALUES (?, ?, ?, ?)",
+    [dbId, file.originalName, file.storedPath, file.hash]
+  );
+  await exec("UPDATE donations SET status = 'submitted' WHERE id = ? AND status = 'pending'", [dbId]);
+  return res.insertId;
+}
+
+/** รูปสลิปไฟล์เดียวกันเคยผ่านการตรวจแล้วหรือยัง (กันส่งรูปซ้ำก่อนเสียเวลาอ่าน) */
+export async function isSlipFileUsed(hash: string) {
+  const rows = await query<RowDataPacket>(
+    `SELECT 1 FROM payment_slips s JOIN payment_verifications v ON v.slip_id = s.id
+     WHERE s.file_hash = ? AND v.verification_status = 'verified' LIMIT 1`,
+    [hash]
+  );
+  return rows.length > 0;
+}
+
+export async function isTransRefUsed(ref: string) {
+  const rows = await query<RowDataPacket>(
+    "SELECT 1 FROM payment_verifications WHERE transaction_ref = ? AND verification_status = 'verified' LIMIT 1",
+    [ref]
+  );
+  return rows.length > 0;
+}
+
+/**
+ * บันทึกผลตรวจสลิป
+ * - ไม่ผ่าน: เก็บเหตุผลใน response_code และไม่เก็บเลขอ้างอิง (สลิปนี้ยังใช้กับรายการที่ยอดถูกต้องได้)
+ * - ผ่าน: เก็บเลขอ้างอิง (unique ต่อผู้ให้บริการ กันสลิปซ้ำได้แม้ส่งพร้อมกัน)
+ */
+export async function recordRejected(slipId: number, provider: string, code: string, data?: { amount?: number; receiver?: string }) {
+  await exec(
+    `INSERT INTO payment_verifications (slip_id, provider, transaction_ref, amount, receiver_promptpay_id, verification_status, response_code)
+     VALUES (?, ?, NULL, ?, ?, 'rejected', ?)`,
+    [slipId, provider, data?.amount ?? null, data?.receiver ?? null, code.slice(0, 50)]
+  );
+}
+
+/**
+ * ยืนยันรายการ: บันทึกผลตรวจ + เปลี่ยนสถานะ donation เป็น verified + ยิง alert
+ * คืน "DUPLICATE" ถ้าเลขอ้างอิงนี้ถูกใช้ไปแล้ว, null ถ้ารายการปิดไปแล้ว
+ */
+export async function completeSession(
+  session: DonationSession,
+  verification: { slipId: number; provider: string; transRef: string; amount: number; receiver?: string } | null
+): Promise<Donation | "DUPLICATE" | null> {
+  const conn = await db().getConnection();
+  try {
+    await conn.beginTransaction();
+    if (verification) {
+      try {
+        await conn.query(
+          `INSERT INTO payment_verifications (slip_id, provider, transaction_ref, amount, receiver_promptpay_id, verification_status, response_code)
+           VALUES (?, ?, ?, ?, ?, 'verified', 'OK')`,
+          [verification.slipId, verification.provider, verification.transRef, verification.amount, verification.receiver ?? null]
+        );
+      } catch (e) {
+        if ((e as { code?: string }).code === "ER_DUP_ENTRY") {
+          await conn.rollback();
+          return "DUPLICATE";
+        }
+        throw e;
+      }
+    }
+    const [res] = await conn.query<import("mysql2").ResultSetHeader>(
+      `UPDATE donations SET status = 'verified', paid_amount = ?, verified_at = CURRENT_TIMESTAMP
+       WHERE id = ? AND status IN ('pending','submitted')`,
+      [verification?.amount ?? session.amount, session.dbId]
+    );
+    if (res.affectedRows !== 1) {
+      await conn.rollback();
+      return null;
+    }
+    await conn.commit();
+  } catch (e) {
+    await conn.rollback().catch(() => {});
+    throw e;
+  } finally {
+    conn.release();
+  }
+
+  emitAlert(session.recipientId, {
+    type: "donation",
+    id: session.id,
+    donorName: session.donorName,
+    message: session.message,
+    amount: session.amount,
+  });
+  return { ref: session.id, donorName: session.donorName, message: session.message, amount: session.amount, createdAt: Date.now() };
+}
+
+export async function listDonations(recipientId: number, limit = 50): Promise<Donation[]> {
+  const rows = await query<
+    RowDataPacket & { donation_ref: string; donor_name: string | null; message: string | null; paid_amount: number | null; expected_amount: number; ms: number }
+  >(
+    `SELECT donation_ref, donor_name, message, paid_amount, expected_amount, UNIX_TIMESTAMP(COALESCE(verified_at, created_at)) * 1000 AS ms
+     FROM donations WHERE recipient_user_id = ? AND status = 'verified'
+     ORDER BY COALESCE(verified_at, created_at) DESC LIMIT ?`,
+    [recipientId, limit]
+  );
+  return rows.map((r) => ({
+    ref: r.donation_ref.slice(0, 8).toUpperCase(),
+    donorName: r.donor_name ?? "ไม่ระบุชื่อ",
+    message: r.message ?? "",
+    amount: Number(r.paid_amount ?? r.expected_amount),
+    createdAt: Number(r.ms),
+  }));
+}
+
+export async function donationTotals(recipientId: number) {
+  const [r] = await query<RowDataPacket & { total: number | null; n: number }>(
+    "SELECT SUM(COALESCE(paid_amount, expected_amount)) AS total, COUNT(*) AS n FROM donations WHERE recipient_user_id = ? AND status = 'verified'",
+    [recipientId]
+  );
+  return { total: Number(r?.total ?? 0), count: Number(r?.n ?? 0) };
+}
+
+// ---------- event bus (alert → widget) ----------
+const g = globalThis as unknown as { __donateBus?: EventEmitter };
+const bus = g.__donateBus ?? (g.__donateBus = new EventEmitter().setMaxListeners(1000));
+
+export function emitAlert(userId: number, event: AlertEvent) {
+  bus.emit(`alert:${userId}`, event);
+}
+export function onAlert(userId: number, fn: (e: AlertEvent) => void) {
+  bus.on(`alert:${userId}`, fn);
+  return () => bus.off(`alert:${userId}`, fn);
+}
+export function listenerCount(userId: number) {
+  return bus.listenerCount(`alert:${userId}`);
+}
+
+// การตั้งค่าเสียงเปลี่ยน → ส่งไป widget ที่เปิดอยู่ทันที
+export function emitSettings(userId: number, settings: unknown) {
+  bus.emit(`settings:${userId}`, settings);
+}
+export function onSettings(userId: number, fn: (s: unknown) => void) {
+  bus.on(`settings:${userId}`, fn);
+  return () => bus.off(`settings:${userId}`, fn);
+}

@@ -1,0 +1,44 @@
+# ฐานข้อมูลสำหรับพัฒนา: MySQL 8.4 + phpMyAdmin
+# เริ่ม:  docker compose up -d
+# หยุด:  docker compose down        (ข้อมูลยังอยู่)
+# ล้าง:  docker compose down -v     (ลบข้อมูลทั้งหมด แล้วสร้างตารางใหม่ตอน up ครั้งถัดไป)
+services:
+  db:
+    image: mysql:8.4
+    container_name: donate-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: donate
+      MYSQL_USER: donate
+      MYSQL_PASSWORD: donatepass
+      TZ: Asia/Bangkok
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    ports:
+      - "127.0.0.1:3306:3306" # เปิดให้เครื่องนี้เท่านั้น
+    volumes:
+      - donate-db:/var/lib/mysql
+      # สร้างตารางอัตโนมัติตอนเริ่มครั้งแรก (เรียงตามชื่อไฟล์)
+      - ./db/donate.sql:/docker-entrypoint-initdb.d/01-donate.sql:ro
+      - ./db/001_app_columns.sql:/docker-entrypoint-initdb.d/02-app-columns.sql:ro
+      - ./db/002_alert_settings.sql:/docker-entrypoint-initdb.d/03-alert-settings.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-prootpass"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  phpmyadmin:
+    image: phpmyadmin:5
+    container_name: donate-phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: db
+    ports:
+      - "127.0.0.1:8080:80" # เปิดดูที่ http://localhost:8080 (ผู้ใช้ donate / donatepass)
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  donate-db:
