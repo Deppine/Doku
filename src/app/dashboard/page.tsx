@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { NavBar } from "@/components/NavBar";
 import { findStreamerById } from "@/lib/streamers";
 import { donationTotals, listDonations } from "@/lib/store";
@@ -20,7 +21,11 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   if (!user) redirect("/login?next=/dashboard");
   const streamer = await findStreamerById(user.id);
   if (!streamer) redirect("/login");
-  const base = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
+  // ใช้โดเมนที่ผู้ใช้เปิดอยู่จริง (ถูกเสมอทั้ง localhost, *.vercel.app และโดเมนของตัวเอง)
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  const proto = h.get("x-forwarded-proto") ?? (host?.startsWith("localhost") || host?.startsWith("127.") ? "http" : "https");
+  const base = host ? `${proto.split(",")[0]}://${host.split(",")[0]}` : (process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000");
 
   const [donations, totals, sound] = await Promise.all([listDonations(streamer.id), donationTotals(streamer.id), getSoundSettings(streamer.id)]);
   const total = totals.total;
