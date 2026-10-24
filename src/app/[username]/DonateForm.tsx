@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { baht } from "@/lib/format";
+import { MAX_DONATION, baht } from "@/lib/format";
 import type { SlipMode } from "@/lib/slip";
 
 type Props = {
@@ -35,12 +35,15 @@ export function DonateForm({ username, minAmount, presets, allowCustom, receiver
   }, []);
 
   const value = custom ? Number(custom) : amount;
-  const valid = Number.isFinite(value) && value >= minAmount;
+  const valid = Number.isFinite(value) && value >= minAmount && value <= MAX_DONATION;
+  const shown = valid || !custom ? baht(value || 0) : custom;
+  // ตัวเลขยาวขึ้น → ตัวอักษรเล็กลง ไม่ให้ล้นจอ
+  const amountSize = shown.length > 8 ? "text-[clamp(48px,15vw,104px)]" : shown.length > 6 ? "text-[clamp(60px,18vw,112px)]" : "text-[clamp(72px,22vw,128px)]";
 
   async function createPayment(e: React.FormEvent) {
     e.preventDefault();
     if (!valid) {
-      setError(`โดเนทขั้นต่ำ ${minAmount} บาท`);
+      setError(value > MAX_DONATION ? `ยอดสูงสุดต่อครั้งคือ ${baht(MAX_DONATION)} บาท` : `โดเนทขั้นต่ำ ${minAmount} บาท`);
       return;
     }
     setBusy(true);
@@ -108,7 +111,7 @@ export function DonateForm({ username, minAmount, presets, allowCustom, receiver
     <form onSubmit={createPayment} className="mt-10" noValidate>
       {/* ยอดเงินตัวใหญ่ — จุดเด่นของหน้า */}
       <div className="text-center" aria-live="polite">
-        <p className="amount text-[clamp(72px,22vw,128px)] text-red">฿{valid || !custom ? baht(value || 0) : custom}</p>
+        <p className={`amount ${amountSize} text-red`}>฿{shown}</p>
       </div>
 
       <fieldset className="mt-6">
@@ -145,9 +148,9 @@ export function DonateForm({ username, minAmount, presets, allowCustom, receiver
           <span className="w-28 shrink-0 pl-4 text-ink-2">ยอดอื่น</span>
           <input
             inputMode="decimal"
-            placeholder={`ขั้นต่ำ ${minAmount} บาท`}
+            placeholder={`${minAmount}–${baht(MAX_DONATION)} บาท`}
             value={custom}
-            onChange={(e) => setCustom(e.target.value.replace(/[^\d.]/g, ""))}
+            onChange={(e) => setCustom(cleanAmount(e.target.value))}
             className="row-field pl-0 tabular-nums"
           />
         </label>
@@ -411,4 +414,13 @@ function TestField({
       />
     </label>
   );
+}
+
+/** รับเฉพาะตัวเลข จุดทศนิยมเดียว ทศนิยมไม่เกิน 2 ตำแหน่ง และไม่เกินยอดสูงสุด */
+function cleanAmount(raw: string) {
+  const [int = "", ...rest] = raw.replace(/[^\d.]/g, "").split(".");
+  const intPart = int.replace(/^0+(?=\d)/, "").slice(0, 7);
+  let out = rest.length ? `${intPart}.${rest.join("").slice(0, 2)}` : intPart;
+  if (Number(out) > MAX_DONATION) out = String(MAX_DONATION);
+  return out;
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { MAX_DONATION } from "@/lib/format";
 import { updateStreamer } from "@/lib/streamers";
 import { currentUserId } from "@/lib/auth";
 import { validatePromptPayId } from "@/lib/promptpay";
@@ -28,7 +29,7 @@ export async function POST(req: Request) {
   const presets = String(body.presets ?? "")
     .split(/[,\s]+/)
     .map((n) => Math.floor(Number(n)))
-    .filter((n) => Number.isFinite(n) && n >= minAmount);
+    .filter((n) => Number.isFinite(n) && n >= minAmount && n <= MAX_DONATION);
   const uniq = [...new Set(presets)].sort((a, b) => a - b).slice(0, 5);
   if (uniq.length < 1) {
     return NextResponse.json({ field: "presets", message: `ใส่ปุ่มยอดอย่างน้อย 1 ค่า และไม่ต่ำกว่า ${minAmount} บาท` }, { status: 400 });

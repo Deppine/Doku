@@ -3,6 +3,7 @@ import QRCode from "qrcode";
 import { findStreamer } from "@/lib/streamers";
 import { buildPromptPayPayload } from "@/lib/promptpay";
 import { createSession } from "@/lib/store";
+import { MAX_DONATION, baht } from "@/lib/format";
 
 export const runtime = "nodejs";
 
@@ -30,8 +31,8 @@ export async function POST(req: Request) {
   if (streamer.allowCustomAmount === false && !streamer.presets.includes(amount)) {
     return NextResponse.json({ message: "เลือกยอดจากปุ่มที่มีให้เท่านั้น" }, { status: 400 });
   }
-  if (amount > 100_000) {
-    return NextResponse.json({ message: "ยอดสูงสุดต่อครั้งคือ 100,000 บาท" }, { status: 400 });
+  if (amount > MAX_DONATION) {
+    return NextResponse.json({ message: `ยอดสูงสุดต่อครั้งคือ ${baht(MAX_DONATION)} บาท` }, { status: 400 });
   }
 
   const payload = buildPromptPayPayload(streamer.promptpayId, amount);
