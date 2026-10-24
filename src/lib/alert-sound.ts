@@ -112,22 +112,54 @@ export function ttsText(template: string, d: { donorName: string; amount: number
     .trim();
 }
 
-export function speak(text: string, s: Pick<AlertSoundSettings, "ttsRate" | "ttsVolume">) {
+/**
+ * หาเสียงพูดภาษาไทยในเครื่อง (รายชื่อเสียงโหลดแบบ async รอได้ไม่เกิน ~1.5 วินาที)
+ * ไม่มี → null: เครื่องนี้ยังไม่ได้ติดตั้งเสียงภาษาไทย
+ */
+export function findThaiVoice(timeoutMs = 1500): Promise<SpeechSynthesisVoice | null> {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) return Promise.resolve(null);
+  const pick = () => window.speechSynthesis.getVoices().find((v) => v.lang?.toLowerCase().replace("_", "-").startsWith("th")) ?? null;
+  const now = pick();
+  if (now || window.speechSynthesis.getVoices().length > 0) return Promise.resolve(now);
+  return new Promise((resolve) => {
+    const done = () => {
+      window.speechSynthesis.removeEventListener("voiceschanged", done);
+      clearTimeout(timer);
+      resolve(pick());
+    };
+    const timer = setTimeout(done, timeoutMs);
+    window.speechSynthesis.addEventListener("voiceschanged", done);
+  });
+}
+
+/**
+ * อ่านข้อความด้วยเสียงภาษาไทยเท่านั้น
+ * ถ้าเครื่องไม่มีเสียงไทย จะไม่อ่าน (เดิมเบราว์เซอร์จะใช้เสียงอังกฤษแทน อ่านได้แค่ตัวเลข/คำอังกฤษ ฟังไม่รู้เรื่อง)
+ * คืน false เมื่อไม่ได้อ่าน
+ */
+export async function speak(text: string, s: Pick<AlertSoundSettings, "ttsRate" | "ttsVolume">): Promise<boolean> {
   try {
-    if (!text || !("speechSynthesis" in window) || s.ttsVolume <= 0) return;
+    if (!text || !("speechSynthesis" in window) || s.ttsVolume <= 0) return false;
+    const thai = await findThaiVoice();
+    if (!thai) {
+      console.warn("[Doku] เครื่องนี้ไม่มีเสียงพูดภาษาไทย จึงข้ามการอ่านข้อความ");
+      return false;
+    }
     const u = new SpeechSynthesisUtterance(text);
-    u.lang = "th-TH";
-    const thai = window.speechSynthesis.getVoices().find((v) => v.lang?.toLowerCase().startsWith("th"));
-    if (thai) u.voice = thai;
+    u.lang = thai.lang || "th-TH";
+    u.voice = thai;
     u.rate = s.ttsRate;
     u.volume = Math.min(1, s.ttsVolume / 100);
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(u);
-  } catch {}
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** เล่นครบชุด: เสียงแจ้งเตือน แล้วตามด้วยเสียงอ่านข้อความ */
 export async function playAlert(s: AlertSoundSettings, d: { donorName: string; amount: number; message: string }, ttsAllowed = true) {
   await playAlertSound(s);
-  if (s.ttsEnabled && ttsAllowed) speak(ttsText(s.ttsTemplate, d), s);
+  if (s.ttsEnabled && ttsAllowed) await speak(ttsText(s.ttsTemplate, d), s);
 }

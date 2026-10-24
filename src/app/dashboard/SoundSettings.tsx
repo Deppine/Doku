@@ -1,8 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
-import { PRESETS, playAlert, playAlertSound, type AlertSoundSettings, type SoundPreset } from "@/lib/alert-sound";
+import { useEffect, useRef, useState } from "react";
+import { PRESETS, findThaiVoice, playAlert, playAlertSound, type AlertSoundSettings, type SoundPreset } from "@/lib/alert-sound";
 
 type Props = { initial: AlertSoundSettings; hasFile: boolean };
 
@@ -17,6 +17,11 @@ export function SoundSettings({ initial, hasFile }: Props) {
   const [state, setState] = useState<{ kind: "idle" | "saving" | "saved" | "error" | "uploading"; message?: string }>({ kind: "idle" });
   const fileRef = useRef<HTMLInputElement>(null);
   const templateRef = useRef<HTMLInputElement>(null);
+  // undefined = กำลังเช็ก, null = เครื่องนี้ไม่มีเสียงไทย
+  const [thaiVoice, setThaiVoice] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    findThaiVoice(2500).then((v) => setThaiVoice(v ? v.name : null));
+  }, []);
 
   const withUrl = (s: AlertSoundSettings): AlertSoundSettings => ({ ...s, soundUrl: fileReady ? `${OWN_URL}?v=${fileVer}` : null });
   const update = (patch: Partial<AlertSoundSettings>) => {
@@ -168,6 +173,19 @@ export function SoundSettings({ initial, hasFile }: Props) {
         </label>
         {v.ttsEnabled && (
           <>
+            {thaiVoice === null && (
+              <div className="bg-[#f5a623]/10 px-4 py-3.5 text-[14px]">
+                <p className="font-semibold text-ink">เครื่องนี้ยังไม่มีเสียงพูดภาษาไทย</p>
+                <p className="mt-1 text-ink-2">
+                  ระบบจะข้ามการอ่านข้อความจนกว่าจะติดตั้ง (ไม่งั้นเครื่องจะใช้เสียงอังกฤษอ่าน ฟังไม่รู้เรื่อง) ติดตั้งบนเครื่องที่เปิด OBS:
+                </p>
+                <ol className="mt-1 list-decimal pl-5 text-ink-2">
+                  <li>Windows: Settings → Time &amp; language → Speech → Manage voices → Add voices → เลือก Thai</li>
+                  <li>ปิดแล้วเปิด OBS (หรือเบราว์เซอร์) ใหม่ แล้วกลับมาหน้านี้ ข้อความนี้จะหายไป</li>
+                </ol>
+              </div>
+            )}
+            {thaiVoice && <p className="px-4 py-2.5 text-[13px] text-ink-3">เสียงที่ใช้บนเครื่องนี้: {thaiVoice}</p>}
             <div className="px-4 py-3.5">
               <label htmlFor="tts-template" className="block text-ink">
                 ประโยคที่อ่าน
