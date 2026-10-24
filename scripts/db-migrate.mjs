@@ -1,15 +1,29 @@
-// รันไฟล์ db/0xx_*.sql ทุกไฟล์ตามลำดับ แบบข้ามส่วนที่มีอยู่แล้ว
+// เตรียมฐานข้อมูล: ถ้ายังว่างจะสร้างตารางจาก db/donate.sql แล้วรัน db/0xx_*.sql ตามลำดับ (ข้ามส่วนที่มีอยู่แล้ว)
 // ใช้: npm run db:migrate
 import fs from "node:fs";
 import mysql from "mysql2/promise";
+import { dbConfig } from "./db-config.mjs";
 
 const url = process.env.DATABASE_URL;
 if (!url) {
   console.error("ยังไม่ได้ตั้ง DATABASE_URL ใน .env.local");
   process.exit(1);
 }
-const conn = await mysql.createConnection(url);
+const conn = await mysql.createConnection({ ...dbConfig(url), multipleStatements: false });
 const dir = new URL("../db/", import.meta.url);
+
+// ฐานข้อมูลใหม่ (เช่น Aiven): ยังไม่มีตาราง users → สร้างจาก db/donate.sql ก่อน
+const [hasUsers] = await conn.query("SHOW TABLES LIKE 'users'");
+if (hasUsers.length === 0) {
+  const base = fs
+    .readFileSync(new URL("donate.sql", dir), "utf8")
+    .split(/;\s*$/m)
+    .map((s) => s.replace(/--.*$/gm, "").trim())
+    .filter(Boolean);
+  for (const st of base) await conn.query(st);
+  console.log(`✓ สร้างตารางตั้งต้นจาก donate.sql (${base.length} คำสั่ง)`);
+}
+
 const files = fs.readdirSync(dir).filter((f) => /^\d{3}_.+\.sql$/.test(f)).sort();
 const statements = files.flatMap((f) =>
   fs

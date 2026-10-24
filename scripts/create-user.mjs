@@ -5,6 +5,7 @@
 import fs from "node:fs";
 import crypto from "node:crypto";
 import mysql from "mysql2/promise";
+import { dbConfig } from "./db-config.mjs";
 import bcrypt from "bcryptjs";
 
 const args = process.argv.slice(2);
@@ -33,7 +34,7 @@ try {
   legacy = list.find((s) => s.username === username) ?? null;
 } catch {}
 
-const conn = await mysql.createConnection(process.env.DATABASE_URL);
+const conn = await mysql.createConnection({ ...dbConfig(), multipleStatements: false });
 const hash = await bcrypt.hash(password, 12);
 const displayName = displayNameArg ?? legacy?.displayName ?? username;
 
