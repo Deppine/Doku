@@ -323,9 +323,7 @@ function PayStep({
         <p className="mt-4 text-[15px] tabular-nums text-ink-2">
           QR ใช้ได้อีก <span className="font-semibold text-ink">{mm}:{ss}</span>
         </p>
-        <a href={payment.qr} download={`promptpay-${payment.amount}.png`} className="btn-quiet mt-2">
-          บันทึกรูป QR
-        </a>
+        <SaveQrButton dataUrl={payment.qr} name={`promptpay-${payment.amount}.png`} />
       </div>
 
       <div className="mt-6 rounded-[28px] bg-surface p-6">
@@ -516,4 +514,49 @@ async function shrinkImage(file: File): Promise<File> {
   } finally {
     decoded?.done();
   }
+}
+
+/**
+ * บันทึกรูป QR: iPhone/มือถือใช้เมนูแชร์ (มี "บันทึกรูปภาพ") เพราะ Safari ไม่รองรับดาวน์โหลดรูปแบบ data URL
+ * คอมพิวเตอร์ดาวน์โหลดเป็นไฟล์ตามปกติ
+ */
+function SaveQrButton({ dataUrl, name }: { dataUrl: string; name: string }) {
+  const [note, setNote] = useState<string | null>(null);
+
+  async function save() {
+    setNote(null);
+    try {
+      const blob = await (await fetch(dataUrl)).blob();
+      const file = new File([blob], name, { type: "image/png" });
+      const mobile = /iphone|ipad|ipod|android/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /mac/i.test(navigator.platform));
+      if (mobile && navigator.canShare?.({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file] });
+        } catch (e) {
+          if ((e as Error).name !== "AbortError") throw e; // ผู้ใช้กดยกเลิกเอง
+        }
+        return;
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      if (mobile) setNote("ถ้ารูปไม่ถูกบันทึก ให้กดค้างที่ QR แล้วเลือก \"บันทึกรูปภาพ\"");
+    } catch {
+      setNote("บันทึกไม่ได้ ให้กดค้างที่ QR แล้วเลือก \"บันทึกรูปภาพ\" หรือแคปหน้าจอแทน");
+    }
+  }
+
+  return (
+    <>
+      <button type="button" onClick={save} className="btn-quiet mt-2">
+        บันทึกรูป QR
+      </button>
+      {note && <p className="mt-1 text-[13px] text-ink-2">{note}</p>}
+    </>
+  );
 }
