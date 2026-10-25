@@ -240,6 +240,21 @@
   -webkit-mask-image: radial-gradient(70% 60% at 50% 30%, #000 30%, transparent 100%);
 }
 
+/* หน้าแรก: แสงหลักเลื่อนลงไปอยู่หลังจอไลฟ์ใหญ่ */
+.hero-bg--stage .hero-glow::before {
+  width: min(1100px, 100vw);
+  height: 600px;
+  top: 34%;
+}
+.hero-bg--stage .hero-glow::after {
+  left: 0;
+  top: 58%;
+}
+.hero-bg--stage .hero-pixels {
+  mask-image: radial-gradient(75% 60% at 50% 45%, #000 30%, transparent 100%);
+  -webkit-mask-image: radial-gradient(75% 60% at 50% 45%, #000 30%, transparent 100%);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .hero-glow::before, .hero-glow::after { animation: none; }
 }
