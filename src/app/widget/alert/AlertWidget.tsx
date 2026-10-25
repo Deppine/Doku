@@ -3,14 +3,30 @@
 import { useEffect, useRef, useState } from "react";
 import { AlertCard, type AlertData } from "@/components/AlertCard";
 import { AlertClassic } from "@/components/AlertClassic";
-import { DEFAULT_SOUND, playAlert, type AlertSoundSettings } from "@/lib/alert-sound";
+import { DEFAULT_SOUND, playAlert, setAudioLogger, type AlertSoundSettings } from "@/lib/alert-sound";
 
 type Incoming = AlertData & { id: string; test?: boolean };
 
 const SHOW_MS = 7000; // แสดงค้างต่อ 1 รายการ
 const GAP_MS = 800; // เว้นระยะระหว่างรายการ
 
-export function AlertWidget({ token, tts, variant }: { token: string; tts: boolean; variant: "classic" | "card" }) {
+export function AlertWidget({ token, tts, variant, debug = false }: { token: string; tts: boolean; variant: "classic" | "card"; debug?: boolean }) {
+  // ?debug=1: แสดงบันทึกการทำงานบนจอ ใช้หาว่าเสียง/การเชื่อมต่อติดตรงไหน
+  const [logs, setLogs] = useState<string[]>([]);
+  const addLog = useRef((msg: string) => {});
+  addLog.current = (msg: string) => {
+    if (!debug) return;
+    const t = new Date().toLocaleTimeString("th-TH", { hour12: false });
+    setLogs((l) => [...l.slice(-11), `${t} ${msg}`]);
+  };
+  useEffect(() => {
+    if (!debug) return;
+    setAudioLogger((m) => addLog.current(m));
+    const a = document.createElement("audio");
+    addLog.current(`เริ่มวิดเจ็ต · mp3: ${a.canPlayType("audio/mpeg") || "ไม่รองรับ"} · ${navigator.userAgent.match(/(Chrome|OBS|Streamlabs)[/\w. ]*/g)?.join(" ") ?? ""}`);
+    return () => setAudioLogger(null);
+  }, [debug]);
+
   const [current, setCurrent] = useState<Incoming | null>(null);
   const [leaving, setLeaving] = useState(false);
   const [status, setStatus] = useState<"connecting" | "online" | "offline">("connecting");
@@ -30,6 +46,7 @@ export function AlertWidget({ token, tts, variant }: { token: string; tts: boole
     es.addEventListener("ready", (e) => {
       const data = JSON.parse((e as MessageEvent).data);
       if (data.sound) sound.current = data.sound;
+      addLog.current(`เชื่อมต่อแล้ว · เสียงอ่าน: ${data.sound?.ttsServerUrl && data.sound?.ttsEngine !== "browser" ? "เซิร์ฟเวอร์" : "ในเครื่อง"} · tts=${tts ? "เปิด" : "ปิด"}`);
       clearTimeout(offlineTimer);
       setStatus("online");
       // เซิร์ฟเวอร์ตัดการเชื่อมต่อเป็นรอบ ๆ แล้วต่อใหม่เอง — โชว์ป้ายเฉพาะครั้งแรก
@@ -42,13 +59,16 @@ export function AlertWidget({ token, tts, variant }: { token: string; tts: boole
     // ตั้งค่าเสียงในแดชบอร์ดแล้วมีผลทันที ไม่ต้องรีเฟรช OBS
     es.addEventListener("settings", (e) => {
       sound.current = JSON.parse((e as MessageEvent).data);
+      addLog.current("ได้รับการตั้งค่าเสียงใหม่");
     });
     es.addEventListener("alert", (e) => {
       queue.current.push(JSON.parse((e as MessageEvent).data));
+      addLog.current("ได้รับแจ้งเตือน");
       playNext();
     });
     // EventSource ต่อใหม่เองอัตโนมัติ ถ้าต่อไม่ติดเกิน 8 วินาทีค่อยโชว์ว่าหลุด
     es.onerror = () => {
+      addLog.current("การเชื่อมต่อสะดุด กำลังต่อใหม่");
       clearTimeout(offlineTimer);
       offlineTimer = setTimeout(() => {
         setStatus("offline");
@@ -95,6 +115,11 @@ export function AlertWidget({ token, tts, variant }: { token: string; tts: boole
         >
           {status === "online" ? "วิดเจ็ตเชื่อมต่อแล้ว" : status === "connecting" ? "กำลังเชื่อมต่อ…" : "เชื่อมต่อไม่ได้ ตรวจลิงก์วิดเจ็ต"}
         </p>
+      )}
+      {debug && (
+        <pre className="fixed right-2 top-2 max-w-[60vw] whitespace-pre-wrap rounded-lg bg-black/80 p-2 text-[12px] leading-snug text-[#9effa1]">
+          {logs.join("\n") || "debug: รอเหตุการณ์…"}
+        </pre>
       )}
     </main>
   );

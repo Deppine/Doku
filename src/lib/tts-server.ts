@@ -40,21 +40,36 @@ export function cleanText(raw: unknown) {
 }
 
 // เก็บเสียงที่เพิ่งสร้างไว้ในหน่วยความจำ (กดทดสอบซ้ำ ๆ ไม่เปลืองโควตา)
-const g = globalThis as unknown as { __ttsCache?: Map<string, Buffer> };
+const g = globalThis as unknown as { __ttsCache?: Map<string, Omit<SynthResult, "cached">> };
 const cache = g.__ttsCache ?? (g.__ttsCache = new Map());
 
-export async function synthesize(text: string, voice: TtsVoice, rate: number): Promise<Buffer> {
+export type TtsTier = "standard" | "premium";
+
+/**
+ * ระดับราคาของเสียง (ใช้นับโควตาฟรี)
+ * Google: Standard/WaveNet = standard (ฟรี 4 ล้านตัวอักษร/เดือน) · Neural2/Chirp/Studio = premium (ฟรี 1 ล้าน)
+ * Azure: เสียง Neural ทั้งหมด = premium
+ */
+export function voiceTier(provider: TtsProvider, voiceName: string): TtsTier {
+  if (provider === "azure") return "premium";
+  return /standard|wavenet/i.test(voiceName) ? "standard" : "premium";
+}
+
+export type SynthResult = { audio: Buffer; cached: boolean; provider: TtsProvider; voiceName: string; tier: TtsTier };
+
+export async function synthesize(text: string, voice: TtsVoice, rate: number): Promise<SynthResult> {
   const provider = ttsProvider();
   if (!provider) throw new Error("TTS_NOT_CONFIGURED");
   const r = Math.min(1.5, Math.max(0.5, Number(rate) || 1));
   const key = createHash("sha1").update(`${provider}|${voice}|${r}|${text}`).digest("hex");
   const hit = cache.get(key);
-  if (hit) return hit;
+  if (hit) return { ...hit, cached: true };
 
-  const audio = provider === "google" ? await google(text, voice, r) : await azure(text, voice, r);
-  cache.set(key, audio);
+  const { audio, voiceName } = provider === "google" ? await google(text, voice, r) : await azure(text, voice, r);
+  const result = { audio, cached: false, provider, voiceName, tier: voiceTier(provider, voiceName) };
+  cache.set(key, result);
   if (cache.size > 40) cache.delete(cache.keys().next().value!);
-  return audio;
+  return result;
 }
 
 // ---------- Google ----------
@@ -76,7 +91,7 @@ async function google(text: string, voice: TtsVoice, rate: number) {
     if (!res.ok) throw new Error(`GOOGLE_${res.status}: ${(await res.text()).slice(0, 200)}`);
     const json = (await res.json()) as { audioContent?: string };
     if (!json.audioContent) throw new Error("GOOGLE_EMPTY");
-    return Buffer.from(json.audioContent, "base64");
+    return { audio: Buffer.from(json.audioContent, "base64"), voiceName: name };
   };
   const name = voice === "male" ? male : female;
   try {
@@ -113,5 +128,5 @@ async function azure(text: string, voice: TtsVoice, rate: number) {
     signal: AbortSignal.timeout(8000),
   });
   if (!res.ok) throw new Error(`AZURE_${res.status}: ${(await res.text()).slice(0, 200)}`);
-  return Buffer.from(await res.arrayBuffer());
+  return { audio: Buffer.from(await res.arrayBuffer()), voiceName: name };
 }

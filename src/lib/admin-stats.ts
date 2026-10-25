@@ -130,3 +130,63 @@ export async function recentDonations(limit = 50): Promise<AdminDonation[]> {
     };
   });
 }
+
+// ---------- เสียงอ่านจากเซิร์ฟเวอร์ (นับตัวอักษรที่ถูกคิดเงิน) ----------
+
+/** โควตาฟรีต่อเดือนและราคาส่วนที่เกิน (USD ต่อ 1 ล้านตัวอักษร) ตามหน้า pricing ของผู้ให้บริการ */
+export const TTS_PLANS = {
+  google: {
+    standard: { label: "เสียงมาตรฐาน (Standard/WaveNet)", free: 4_000_000, usdPerMillion: 4 },
+    premium: { label: "เสียงพรีเมียม (Neural2/Chirp 3 HD)", free: 1_000_000, usdPerMillion: 30 },
+  },
+  azure: {
+    standard: { label: "เสียงมาตรฐาน", free: 0, usdPerMillion: null },
+    premium: { label: "เสียง Neural", free: 500_000, usdPerMillion: null }, // ราคาส่วนเกินดูใน Azure Portal
+  },
+} as const;
+
+/** ค่าเงินโดยประมาณ ใช้แปลงค่าใช้จ่ายเป็นบาท (ตั้งเองได้ด้วย USD_THB_RATE) */
+export const USD_THB = Number(process.env.USD_THB_RATE) || 34;
+
+export type TtsUsage = {
+  tiers: { provider: "google" | "azure"; tier: "standard" | "premium"; chars: number; requests: number }[];
+  byStreamer: { username: string; displayName: string; chars: number; requests: number }[];
+  available: boolean; // false = ยังไม่มีตาราง tts_usage (ยังไม่ได้ migrate)
+};
+
+export async function ttsUsageThisMonth(): Promise<TtsUsage> {
+  const { month } = bangkokStarts();
+  try {
+    const [tiers, users] = await Promise.all([
+      query<RowDataPacket & { provider: string; tier: string; chars: number; n: number }>(
+        `SELECT provider, tier, SUM(chars) AS chars, COUNT(*) AS n FROM tts_usage
+         WHERE UNIX_TIMESTAMP(created_at) >= ? GROUP BY provider, tier`,
+        [month]
+      ),
+      query<RowDataPacket & { username: string | null; display_name: string | null; chars: number; n: number }>(
+        `SELECT u.username, u.display_name, SUM(t.chars) AS chars, COUNT(*) AS n
+         FROM tts_usage t LEFT JOIN users u ON u.id = t.user_id
+         WHERE UNIX_TIMESTAMP(t.created_at) >= ? GROUP BY t.user_id ORDER BY chars DESC`,
+        [month]
+      ),
+    ]);
+    return {
+      available: true,
+      tiers: tiers.map((r) => ({
+        provider: r.provider === "azure" ? "azure" : "google",
+        tier: r.tier === "premium" ? "premium" : "standard",
+        chars: Number(r.chars),
+        requests: Number(r.n),
+      })),
+      byStreamer: users.map((r) => ({
+        username: r.username ?? "-",
+        displayName: r.display_name ?? "บัญชีที่ถูกลบ",
+        chars: Number(r.chars),
+        requests: Number(r.n),
+      })),
+    };
+  } catch (e) {
+    if ((e as { code?: string }).code === "ER_NO_SUCH_TABLE") return { available: false, tiers: [], byStreamer: [] };
+    throw e;
+  }
+}

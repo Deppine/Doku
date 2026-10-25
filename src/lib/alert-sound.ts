@@ -61,6 +61,13 @@ const NOTES: Record<string, Note[]> = {
   pop: [{ f: 520, t: 0, d: 0.16, type: "triangle", g: 1 }],
 };
 
+// บันทึกสถานะเสียง (แสดงบนวิดเจ็ตเมื่อเปิด ?debug=1)
+let logFn: ((msg: string) => void) | null = null;
+export function setAudioLogger(fn: ((msg: string) => void) | null) {
+  logFn = fn;
+}
+const log = (msg: string) => logFn?.(msg);
+
 let ctx: AudioContext | null = null;
 function audio() {
   const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
@@ -91,6 +98,7 @@ function playNotes(notes: Note[], volume: number) {
 export function playAlertSound(s: AlertSoundSettings): Promise<void> {
   try {
     if (s.soundVolume <= 0 || s.soundPreset === "none") return Promise.resolve();
+    log(`เล่นเสียงแจ้งเตือน: ${s.soundPreset}${s.soundPreset === "custom" ? "" : ` (Web Audio ${audio().state})`}`);
     if (s.soundPreset === "custom" && s.soundUrl) {
       const el = new Audio(s.soundUrl);
       el.volume = Math.min(1, s.soundVolume / 100);
@@ -178,22 +186,50 @@ export async function speakServer(url: string, text: string, s: Pick<AlertSoundS
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text, voice: s.ttsVoice, rate: s.ttsRate }),
     });
+    log(`ขอเสียงอ่าน: ${res.status}`);
     if (!res.ok) return false;
-    const src = URL.createObjectURL(await res.blob());
-    const el = new Audio(src);
-    el.volume = Math.min(1, s.ttsVolume / 100);
+    const data = await res.arrayBuffer();
+    const volume = Math.min(1, s.ttsVolume / 100);
+
+    // เล่นผ่าน Web Audio ก่อน (เส้นทางเดียวกับเสียงแจ้งเตือน) ไม่ได้ค่อยใช้ <audio>
+    try {
+      const ac = audio();
+      const buf = await ac.decodeAudioData(data.slice(0));
+      const src = ac.createBufferSource();
+      const gain = ac.createGain();
+      gain.gain.value = volume;
+      src.buffer = buf;
+      src.connect(gain).connect(ac.destination);
+      log(`เล่นเสียงอ่าน (Web Audio ${ac.state}) ${buf.duration.toFixed(1)} วินาที`);
+      await new Promise<void>((resolve) => {
+        src.onended = () => resolve();
+        setTimeout(resolve, (buf.duration + 2) * 1000);
+        src.start();
+      });
+      return true;
+    } catch (e) {
+      log(`Web Audio ใช้ไม่ได้: ${(e as Error).name} → ลอง <audio>`);
+    }
+
+    const blobUrl = URL.createObjectURL(new Blob([data], { type: "audio/mpeg" }));
+    const el = new Audio(blobUrl);
+    el.volume = volume;
     await new Promise<void>((resolve) => {
       const done = () => {
-        URL.revokeObjectURL(src);
+        URL.revokeObjectURL(blobUrl);
         resolve();
       };
       el.addEventListener("ended", done, { once: true });
-      el.addEventListener("error", done, { once: true });
+      el.addEventListener("error", () => (log(`<audio> error ${el.error?.code ?? ""}`), done()), { once: true });
       setTimeout(done, 30_000);
-      el.play().catch(done);
+      el.play().then(
+        () => log("เล่นเสียงอ่าน (<audio>)"),
+        (e) => (log(`<audio> เล่นไม่ได้: ${(e as Error).name}`), done())
+      );
     });
     return true;
-  } catch {
+  } catch (e) {
+    log(`เสียงอ่านจากเซิร์ฟเวอร์ล้มเหลว: ${(e as Error).message}`);
     return false;
   }
 }
@@ -205,5 +241,7 @@ export async function playAlert(s: AlertSoundSettings, d: { donorName: string; a
   await playAlertSound(s);
   if (!text) return;
   if (s.ttsServerUrl && s.ttsEngine !== "browser" && (await speakServer(s.ttsServerUrl, text, s))) return;
-  await speak(text, s);
+  log(s.ttsServerUrl ? "ใช้เสียงในเครื่องแทน (เซิร์ฟเวอร์ไม่สำเร็จ)" : "ใช้เสียงในเครื่อง (ไม่ได้ตั้งเสียงเซิร์ฟเวอร์)");
+  const ok = await speak(text, s);
+  if (!ok) log("เครื่องนี้ไม่มีเสียงไทย ข้ามการอ่าน");
 }
