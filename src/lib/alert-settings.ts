@@ -4,6 +4,7 @@
 import { exec, query, type RowDataPacket } from "./db";
 import { DEFAULT_SOUND, PRESETS, type AlertSoundSettings, type SoundPreset } from "./alert-sound";
 import { ttsProvider } from "./tts-server";
+import { isAlertStyle } from "./alert-style";
 
 type Row = RowDataPacket & {
   sound_preset: string;
@@ -46,7 +47,7 @@ export async function getSoundSettings(userId: number): Promise<StoredSoundSetti
     ttsVolume: Number(r.tts_volume),
     ttsVoice: r.tts_voice === "male" ? "male" : "female",
     ttsEngine: r.tts_engine === "browser" ? "browser" : "auto",
-    alertStyle: r.alert_style === "card" ? "card" : "classic",
+    alertStyle: isAlertStyle(r.alert_style) ? r.alert_style : "classic",
   };
 }
 
@@ -87,7 +88,7 @@ export function sanitize(input: Record<string, unknown>, cur: StoredSoundSetting
     ttsVolume: Math.round(clamp(input.ttsVolume, 0, 100, cur.ttsVolume)),
     ttsVoice: input.ttsVoice === "male" || input.ttsVoice === "female" ? input.ttsVoice : cur.ttsVoice,
     ttsEngine: input.ttsEngine === "browser" || input.ttsEngine === "auto" ? input.ttsEngine : cur.ttsEngine,
-    alertStyle: input.alertStyle === "card" || input.alertStyle === "classic" ? input.alertStyle : cur.alertStyle,
+    alertStyle: isAlertStyle(input.alertStyle) ? input.alertStyle : cur.alertStyle,
   };
 }
 

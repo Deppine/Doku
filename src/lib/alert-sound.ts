@@ -1,3 +1,4 @@
+import type { AlertStyle } from "./alert-style";
 /**
  * เสียงแจ้งเตือน (ใช้ฝั่งเบราว์เซอร์: widget OBS + ปุ่มฟังตัวอย่างในแดชบอร์ด)
  * เสียงสำเร็จรูปสร้างด้วย Web Audio ไม่ต้องมีไฟล์เสียง
@@ -18,7 +19,7 @@ export type AlertSoundSettings = {
   /** auto = ใช้เสียงจากเซิร์ฟเวอร์ถ้าตั้งค่าไว้ ไม่งั้นใช้เสียงในเครื่อง · browser = เสียงในเครื่องเสมอ */
   ttsEngine: "auto" | "browser";
   /** รูปแบบแจ้งเตือนบนจอ (ลิงก์วิดเจ็ตที่มี &style=... ใช้ค่าในลิงก์ก่อน) */
-  alertStyle: "classic" | "card";
+  alertStyle: AlertStyle;
   /** ลิงก์ขอไฟล์เสียงอ่านจากเซิร์ฟเวอร์ (null = ใช้เสียงในเครื่อง) */
   ttsServerUrl: string | null;
 };

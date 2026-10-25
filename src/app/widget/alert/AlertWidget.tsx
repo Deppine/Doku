@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { AlertCard, type AlertData } from "@/components/AlertCard";
 import { AlertClassic } from "@/components/AlertClassic";
+import { AlertLed, AlertNeon, AlertPop } from "@/components/AlertStyles";
+import type { AlertStyle } from "@/lib/alert-style";
 import { DEFAULT_SOUND, playAlert, setAudioLogger, type AlertSoundSettings } from "@/lib/alert-sound";
 
 type Incoming = AlertData & { id: string; test?: boolean };
@@ -18,10 +20,10 @@ export function AlertWidget({
 }: {
   token: string;
   tts: boolean;
-  variant: "classic" | "card" | null; // จากลิงก์ (&style=) · null = ตามที่ตั้งในแดชบอร์ด
+  variant: AlertStyle | null; // จากลิงก์ (&style=) · null = ตามที่ตั้งในแดชบอร์ด
   debug?: boolean;
 }) {
-  const [style, setStyle] = useState<"classic" | "card">(forced ?? "classic");
+  const [style, setStyle] = useState<AlertStyle>(forced ?? "classic");
   const variant = forced ?? style;
   // ?debug=1: แสดงบันทึกการทำงานบนจอ ใช้หาว่าเสียง/การเชื่อมต่อติดตรงไหน
   const [logs, setLogs] = useState<string[]>([]);
@@ -116,12 +118,18 @@ export function AlertWidget({
   }
 
   return (
-    <main className={`flex min-h-dvh items-start justify-center ${variant === "classic" ? "pt-[6vh]" : "pt-10"}`}>
+    <main className={`flex min-h-dvh items-start justify-center overflow-hidden ${variant === "classic" ? "pt-[6vh]" : "pt-10"}`}>
       {current &&
-        (variant === "classic" ? (
-          <AlertClassic key={current.id} data={current} className={leaving ? "pop-out" : "pop-in"} />
-        ) : (
+        (variant === "neon" ? (
+          <AlertNeon key={current.id} data={current} leaving={leaving} showMs={SHOW_MS} />
+        ) : variant === "pop" ? (
+          <AlertPop key={current.id} data={current} leaving={leaving} />
+        ) : variant === "led" ? (
+          <AlertLed key={current.id} data={current} leaving={leaving} showMs={SHOW_MS} />
+        ) : variant === "card" ? (
           <AlertCard key={current.id} data={current} className={leaving ? "alert-out" : "alert-in"} />
+        ) : (
+          <AlertClassic key={current.id} data={current} className={leaving ? "pop-out" : "pop-in"} />
         ))}
       {showStatus && !current && (
         <p

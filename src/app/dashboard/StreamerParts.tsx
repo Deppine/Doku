@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { baht } from "@/lib/format";
+import type { AlertStyle } from "@/lib/alert-style";
 
 /** ปุ่มคัดลอกข้อความ */
 export function CopyButton({ value, label, className }: { value: string; label: string; className?: string }) {
@@ -369,10 +370,10 @@ export function SettingsTabs({ tabs }: { tabs: { id: string; label: string; cont
 }
 
 /** เลือกรูปแบบแจ้งเตือนบนจอ (บันทึกทันที วิดเจ็ตเปลี่ยนตามโดยไม่ต้องรีเฟรช) */
-export function AlertStylePicker({ initial }: { initial: "classic" | "card" }) {
-  const [style, setStyle] = useState(initial);
+export function AlertStylePicker({ initial }: { initial: AlertStyle }) {
+  const [style, setStyle] = useState<AlertStyle>(initial);
   const [err, setErr] = useState<string | null>(null);
-  async function pick(next: "classic" | "card") {
+  async function pick(next: AlertStyle) {
     const prev = style;
     setStyle(next);
     setErr(null);
@@ -386,32 +387,75 @@ export function AlertStylePicker({ initial }: { initial: "classic" | "card" }) {
       setErr((await res.json().catch(() => ({}))).message ?? "บันทึกไม่สำเร็จ");
     }
   }
-  const opts = [
+  const opts: { v: AlertStyle; label: string; preview: ReactNode }[] = [
     {
-      v: "classic" as const,
+      v: "classic",
       label: "ตัวอักษรกลางจอ",
       preview: (
-        <span className="text-center text-[13px] leading-snug text-white">
-          <b className="text-[#ff3b30]">มีมี่</b> โดเนทมา <b className="text-[#ff3b30]">50฿</b>
-          <br />
-          ขอเพลงหน่อย
+        <span className="grid h-full place-items-center text-center text-[13px] font-bold leading-snug text-white">
+          <span>
+            <span className="text-[#ff3b30]">มีมี่</span> โดเนทมา <span className="text-[#ff3b30]">50฿</span>
+            <br />
+            <span className="text-[11px]">ขอเพลงหน่อย</span>
+          </span>
         </span>
       ),
     },
     {
-      v: "card" as const,
-      label: "การ์ดขาว",
+      v: "neon",
+      label: "นีออนมุมจอ",
       preview: (
-        <span className="rounded-lg bg-white px-3 py-2 text-[12px] text-[#1d1d1f]">
-          <b>มีมี่</b> · ฿50
+        <span className="absolute bottom-2.5 left-2.5 flex items-center gap-1.5 rounded-[10px] bg-[rgba(30,12,14,.95)] py-1.5 pl-1.5 pr-2.5 text-[11px] text-white shadow-[0_0_0_1px_rgba(255,59,48,.6),0_0_14px_rgba(255,59,48,.5)]">
+          <span className="grid size-5 place-items-center rounded-full bg-[linear-gradient(140deg,#ff6b5e,#c40000)] font-bold">ม</span>
+          <b>มีมี่</b>
+          <b className="text-[#ff5a4f]">฿50</b>
+        </span>
+      ),
+    },
+    {
+      v: "pop",
+      label: "ป้ายเด้งกลางจอ",
+      preview: (
+        <span className="grid h-full place-items-center">
+          <span className="rounded-xl bg-[linear-gradient(160deg,#ff5a4f,#e10600_55%,#8f0010)] px-3.5 py-1.5 text-center font-bold leading-tight text-white">
+            <span className="block text-[20px]">฿50</span>
+            <span className="block text-[10px]">มีมี่ โดเนท</span>
+          </span>
+        </span>
+      ),
+    },
+    {
+      v: "led",
+      label: "ป้ายไฟ LED",
+      preview: (
+        <span
+          className="absolute inset-x-0 top-0 flex items-center gap-2 border-b-2 border-[#e10600] bg-[#070708] px-2.5 py-1.5 text-[11px] font-bold text-white"
+          style={{ backgroundImage: "radial-gradient(rgba(255,59,48,.22) 1px,transparent 1.4px)", backgroundSize: "5px 5px" }}
+        >
+          <span className="rounded-[3px] bg-[#e10600] px-1 text-[9px]">DONATE</span>
+          <span className="text-[#ff5a4f] [text-shadow:0_0_5px_rgba(255,59,48,.9)]">มีมี่ ฿50</span>
         </span>
       ),
     },
   ];
+  // แบบการ์ดขาวเลิกใช้แล้ว: โชว์เฉพาะคนที่ยังเลือกไว้ จะได้รู้ว่าตอนนี้ใช้แบบไหน
+  if (initial === "card") {
+    opts.push({
+      v: "card",
+      label: "การ์ดขาว (แบบเก่า)",
+      preview: (
+        <span className="grid h-full place-items-center">
+          <span className="rounded-lg bg-white px-3 py-2 text-[12px] text-[#1d1d1f]">
+            <b>มีมี่</b> · ฿50
+          </span>
+        </span>
+      ),
+    });
+  }
   return (
     <div>
       <p className="text-[14px] font-semibold">รูปแบบแจ้งเตือน</p>
-      <div role="radiogroup" aria-label="รูปแบบแจ้งเตือน" className="mt-2 grid grid-cols-2 gap-2.5">
+      <div role="radiogroup" aria-label="รูปแบบแจ้งเตือน" className="mt-2 grid grid-cols-2 gap-2.5 lg:grid-cols-4">
         {opts.map((o) => (
           <button
             key={o.v}
@@ -421,7 +465,7 @@ export function AlertStylePicker({ initial }: { initial: "classic" | "card" }) {
             onClick={() => style !== o.v && pick(o.v)}
             className={`rounded-2xl border-2 bg-paper p-3 text-left ${style === o.v ? "border-red" : "border-line hover:border-ink-3"}`}
           >
-            <span aria-hidden className="grid h-20 place-items-center rounded-xl bg-[#111]">
+            <span aria-hidden className="relative block h-20 overflow-hidden rounded-xl bg-[linear-gradient(180deg,#141821,#0b0d12)]">
               {o.preview}
             </span>
             <span className="mt-2 block text-[14px] font-semibold">{o.label}</span>
