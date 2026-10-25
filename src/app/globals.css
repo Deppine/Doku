@@ -58,6 +58,12 @@
       --color-line: #38383a;
     }
   }
+  /* รายการตัวเลือกของ <select> ใช้สีตามธีม (Windows/Chrome เอาพื้นขาวมาใส่ ถ้า select พื้นโปร่งใส) */
+  select option,
+  select optgroup {
+    background-color: var(--color-surface);
+    color: var(--color-ink);
+  }
   html {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
