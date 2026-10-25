@@ -17,6 +17,8 @@ export type AlertSoundSettings = {
   ttsVoice: "female" | "male";
   /** auto = ใช้เสียงจากเซิร์ฟเวอร์ถ้าตั้งค่าไว้ ไม่งั้นใช้เสียงในเครื่อง · browser = เสียงในเครื่องเสมอ */
   ttsEngine: "auto" | "browser";
+  /** รูปแบบแจ้งเตือนบนจอ (ลิงก์วิดเจ็ตที่มี &style=... ใช้ค่าในลิงก์ก่อน) */
+  alertStyle: "classic" | "card";
   /** ลิงก์ขอไฟล์เสียงอ่านจากเซิร์ฟเวอร์ (null = ใช้เสียงในเครื่อง) */
   ttsServerUrl: string | null;
 };
@@ -31,6 +33,7 @@ export const DEFAULT_SOUND: AlertSoundSettings = {
   ttsVolume: 100,
   ttsVoice: "female",
   ttsEngine: "auto",
+  alertStyle: "classic",
   ttsServerUrl: null,
 };
 

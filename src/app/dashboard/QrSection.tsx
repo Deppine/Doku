@@ -7,7 +7,8 @@ type Size = "s" | "m" | "l";
 type Theme = "light" | "dark";
 
 /** QR หน้าโดเนท: ดาวน์โหลดไปใช้ต่อ + ลิงก์การ์ด QR สำหรับขึ้นจอใน OBS */
-export function QrSection({ username, pageUrl, cardUrl }: { username: string; pageUrl: string; cardUrl: string }) {
+export function QrSection({ username, pageUrl, cardUrl, compact = false }: { username: string; pageUrl: string; cardUrl: string; compact?: boolean }) {
+  const box = compact ? "bg-paper" : "bg-surface";
   const [size, setSize] = useState<Size>("m");
   const [theme, setTheme] = useState<Theme>("light");
   const [shared, setShared] = useState<string | null>(null);
@@ -31,8 +32,8 @@ export function QrSection({ username, pageUrl, cardUrl }: { username: string; pa
   }
 
   return (
-    <div className="mt-4 grid gap-4 sm:grid-cols-[220px_1fr]">
-      <div className="rounded-[24px] bg-surface p-4">
+    <div className={`mt-4 grid gap-4 ${compact ? "" : "sm:grid-cols-[220px_1fr]"}`}>
+      <div className={`rounded-[24px] ${box} p-4`}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={`${qr}?size=600`} alt="QR หน้าโดเนท" width={188} height={188} className="mx-auto aspect-square w-full max-w-[200px] rounded-xl bg-white" />
         <p className="mt-2 truncate text-center text-[12px] text-ink-3">{pageUrl.replace(/^https?:\/\//, "")}</p>
@@ -51,7 +52,7 @@ export function QrSection({ username, pageUrl, cardUrl }: { username: string; pa
           </button>
         </div>
 
-        <div className="rounded-[24px] bg-surface p-4">
+        <div className={`rounded-[24px] ${box} p-4`}>
           <p className="font-semibold">การ์ด QR บนจอไลฟ์</p>
           <p className="mt-0.5 text-[13px] text-ink-2">ใน OBS เพิ่ม Browser Source ขนาด 600 × 600 แล้ววางลิงก์นี้ พื้นหลังโปร่งใส ลากไปไว้มุมจอได้</p>
           <div className="mt-3 flex flex-wrap gap-2">

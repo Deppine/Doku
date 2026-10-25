@@ -3,6 +3,7 @@ import { addSlip, completeSession, getSession, isSlipFileUsed, isTransRefUsed, r
 import { findStreamerById } from "@/lib/streamers";
 import { accountMatches, getSlipVerifier, slipMode } from "@/lib/slip";
 import { saveSlipFile } from "@/lib/uploads";
+import { exec } from "@/lib/db";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -48,6 +49,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   mark("load", t);
 
   // อ่านสลิป และเก็บไฟล์ลงฐานข้อมูลไปพร้อมกัน (เดิมทำทีละอย่าง)
+  let readMs = 0;
   t = performance.now();
   const [saved, result] = await Promise.all([
     (async () => {
@@ -57,6 +59,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     })(),
     (async () => {
       const r = await getSlipVerifier(session.amount, streamer.promptpayId!).verify(file, form);
+      readMs = performance.now() - t;
       mark("read", t);
       return r;
     })(),
@@ -76,6 +79,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     return reply({ message: "สลิปนี้ถูกใช้ไปแล้ว" }, 409);
   }
   const slipId = await addSlip(session.dbId, { ...saved, hash: saved.hash || "" });
+  // เก็บเวลาที่ใช้อ่านสลิปไว้ทำค่าเฉลี่ยในหน้าผู้ดูแล
+  await exec("UPDATE payment_slips SET check_ms = ? WHERE id = ?", [Math.round(readMs), slipId]).catch(() => {});
 
   if (!result.ok) {
     await recordRejected(slipId, mode, "UNREADABLE");

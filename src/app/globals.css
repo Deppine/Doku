@@ -15,6 +15,8 @@
   --color-ink-3: #86868b;
   --color-paper: #f5f5f7;
   --color-line: #d2d2d7;
+  --color-ok: #1f7a3f; /* สถานะดี (ข้อความสีเขียว) */
+  --color-warn: #8a5a00; /* รอดำเนินการ (ข้อความสีเหลืองเข้ม) */
   --font-sans: "Anuphan", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
   --ease-apple: cubic-bezier(0.28, 0.11, 0.32, 1);
 }
@@ -39,6 +41,8 @@
     --color-ink-3: #8e8e93;
     --color-paper: #111113;
     --color-line: #38383a;
+    --color-ok: #30d158;
+    --color-warn: #f5a623;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
@@ -56,6 +60,8 @@
       --color-ink-3: #8e8e93;
       --color-paper: #111113;
       --color-line: #38383a;
+      --color-ok: #30d158;
+      --color-warn: #f5a623;
     }
   }
   /* รายการตัวเลือกของ <select> ใช้สีตามธีม (Windows/Chrome เอาพื้นขาวมาใส่ ถ้า select พื้นโปร่งใส) */

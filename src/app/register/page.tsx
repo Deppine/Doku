@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export default async function RegisterPage() {
   const user = await currentUser().catch(() => null);
   if (user) redirect(homeFor(user.role));
-  const open = registrationOpen();
+  const open = await registrationOpen();
 
   return (
     <>

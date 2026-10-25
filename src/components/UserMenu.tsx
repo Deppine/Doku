@@ -45,17 +45,21 @@ export function UserMenu({ user }: { user: NavUser }) {
               @{user.username} · {user.role === "admin" ? "ผู้ดูแล" : "สตรีมเมอร์"}
             </p>
           </div>
-          <MenuLink href="/dashboard" onClick={() => setOpen(false)}>
-            แดชบอร์ด
-          </MenuLink>
-          {user.role === "admin" && (
+          {/* ผู้ดูแลไม่มีแดชบอร์ดสตรีมเมอร์ เห็นแค่หน้าผู้ดูแลระบบ */}
+          {user.role === "admin" ? (
             <MenuLink href="/admin" onClick={() => setOpen(false)}>
               ผู้ดูแลระบบ
             </MenuLink>
+          ) : (
+            <>
+              <MenuLink href="/dashboard" onClick={() => setOpen(false)}>
+                แดชบอร์ด
+              </MenuLink>
+              <MenuLink href={`/${user.username}`} onClick={() => setOpen(false)}>
+                หน้าโดเนทของฉัน
+              </MenuLink>
+            </>
           )}
-          <MenuLink href={`/${user.username}`} onClick={() => setOpen(false)}>
-            หน้าโดเนทของฉัน
-          </MenuLink>
           <form action="/api/auth/logout" method="post" className="mt-1 border-t border-line/60 pt-1">
             <button type="submit" role="menuitem" className="w-full rounded-xl px-3 py-2 text-left text-red hover:bg-fill">
               ออกจากระบบ

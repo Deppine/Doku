@@ -15,6 +15,7 @@ type Row = RowDataPacket & {
   tts_volume: number;
   tts_voice?: string; // มีหลังรัน 005_tts_voice.sql
   tts_engine?: string;
+  alert_style?: string; // มีหลังรัน 008
 };
 
 export type StoredSoundSettings = Omit<AlertSoundSettings, "soundUrl" | "ttsServerUrl"> & { soundFile: string | null };
@@ -45,6 +46,7 @@ export async function getSoundSettings(userId: number): Promise<StoredSoundSetti
     ttsVolume: Number(r.tts_volume),
     ttsVoice: r.tts_voice === "male" ? "male" : "female",
     ttsEngine: r.tts_engine === "browser" ? "browser" : "auto",
+    alertStyle: r.alert_style === "card" ? "card" : "classic",
   };
 }
 
@@ -85,6 +87,7 @@ export function sanitize(input: Record<string, unknown>, cur: StoredSoundSetting
     ttsVolume: Math.round(clamp(input.ttsVolume, 0, 100, cur.ttsVolume)),
     ttsVoice: input.ttsVoice === "male" || input.ttsVoice === "female" ? input.ttsVoice : cur.ttsVoice,
     ttsEngine: input.ttsEngine === "browser" || input.ttsEngine === "auto" ? input.ttsEngine : cur.ttsEngine,
+    alertStyle: input.alertStyle === "card" || input.alertStyle === "classic" ? input.alertStyle : cur.alertStyle,
   };
 }
 
@@ -97,30 +100,39 @@ export async function saveSoundSettings(userId: number, s: StoredSoundSettings) 
   }
 }
 
+/**
+ * บันทึกการตั้งค่า: ลองคอลัมน์ครบก่อน ถ้าฐานข้อมูลยังไม่ได้ migrate บางไฟล์ ค่อยตัดคอลัมน์ใหม่ทิ้งทีละชุด
+ * (เว็บใช้ต่อได้ ค่าที่ยังไม่มีคอลัมน์จะยังไม่ถูกจำ)
+ */
 async function saveRow(userId: number, s: StoredSoundSettings) {
-  try {
-    await exec(
-      `INSERT INTO alert_settings (user_id, sound_preset, sound_file_path, sound_volume, tts_enabled, tts_template, tts_rate, tts_volume, tts_voice, tts_engine)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE sound_preset = VALUES(sound_preset), sound_file_path = VALUES(sound_file_path),
-         sound_volume = VALUES(sound_volume), tts_enabled = VALUES(tts_enabled), tts_template = VALUES(tts_template),
-         tts_rate = VALUES(tts_rate), tts_volume = VALUES(tts_volume), tts_voice = VALUES(tts_voice),
-         tts_engine = VALUES(tts_engine), updated_at = CURRENT_TIMESTAMP`,
-      [userId, s.soundPreset, s.soundFile, s.soundVolume, s.ttsEnabled ? 1 : 0, s.ttsTemplate, s.ttsRate, s.ttsVolume, s.ttsVoice, s.ttsEngine]
-    );
-    return;
-  } catch (e) {
-    // ยังไม่ได้รัน 005_tts_voice.sql → บันทึกแบบเดิมไปก่อน (เสียงหญิง/ชายจะยังไม่ถูกจำ)
-    if ((e as { code?: string }).code !== "ER_BAD_FIELD_ERROR") throw e;
+  const base: [string, unknown][] = [
+    ["sound_preset", s.soundPreset],
+    ["sound_file_path", s.soundFile],
+    ["sound_volume", s.soundVolume],
+    ["tts_enabled", s.ttsEnabled ? 1 : 0],
+    ["tts_template", s.ttsTemplate],
+    ["tts_rate", s.ttsRate],
+    ["tts_volume", s.ttsVolume],
+  ];
+  const tts: [string, unknown][] = [
+    ["tts_voice", s.ttsVoice],
+    ["tts_engine", s.ttsEngine],
+  ];
+  const style: [string, unknown][] = [["alert_style", s.alertStyle]]; // 008
+  const attempts = [[...base, ...tts, ...style], [...base, ...tts], base];
+  for (let i = 0; i < attempts.length; i++) {
+    const cols = attempts[i];
+    try {
+      await exec(
+        `INSERT INTO alert_settings (user_id, ${cols.map(([c]) => c).join(", ")}) VALUES (?, ${cols.map(() => "?").join(", ")})
+         ON DUPLICATE KEY UPDATE ${cols.map(([c]) => `${c} = VALUES(${c})`).join(", ")}, updated_at = CURRENT_TIMESTAMP`,
+        [userId, ...cols.map(([, v]) => v)]
+      );
+      return;
+    } catch (e) {
+      if ((e as { code?: string }).code !== "ER_BAD_FIELD_ERROR" || i === attempts.length - 1) throw e;
+    }
   }
-  await exec(
-    `INSERT INTO alert_settings (user_id, sound_preset, sound_file_path, sound_volume, tts_enabled, tts_template, tts_rate, tts_volume)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-     ON DUPLICATE KEY UPDATE sound_preset = VALUES(sound_preset), sound_file_path = VALUES(sound_file_path),
-       sound_volume = VALUES(sound_volume), tts_enabled = VALUES(tts_enabled), tts_template = VALUES(tts_template),
-       tts_rate = VALUES(tts_rate), tts_volume = VALUES(tts_volume), updated_at = CURRENT_TIMESTAMP`,
-    [userId, s.soundPreset, s.soundFile, s.soundVolume, s.ttsEnabled ? 1 : 0, s.ttsTemplate, s.ttsRate, s.ttsVolume]
-  );
 }
 
 /** ลิงก์ไฟล์เสียงสำหรับ widget (ยืนยันสิทธิ์ด้วย token ของ widget) */

@@ -8,7 +8,7 @@ import bcrypt from "bcryptjs";
 import { query, type RowDataPacket } from "./db";
 
 const COOKIE = "donate_session";
-const MAX_AGE = 60 * 60 * 24 * 14; // 14 วัน
+const MAX_AGE = 60 * 60 * 24; // 1 วัน: ครบแล้วต้องล็อกอินใหม่
 const DUMMY_HASH = bcrypt.hashSync("dummy-password-for-timing", 10);
 
 function secret() {
@@ -48,8 +48,8 @@ export async function endSession() {
   (await cookies()).delete(COOKIE);
 }
 
-/** id จากคุกกี้ (ตรวจลายเซ็นอย่างเดียว ยังไม่เช็กฐานข้อมูล) */
-async function sessionUserId(): Promise<number | null> {
+/** อ่านคุกกี้ที่ลายเซ็นถูกต้องและยังไม่หมดอายุ (ยังไม่เช็กฐานข้อมูล) */
+async function readSession(): Promise<{ id: number; exp: number } | null> {
   const raw = (await cookies()).get(COOKIE)?.value;
   if (!raw) return null;
   const [id, exp, sig] = raw.split(".");
@@ -57,8 +57,21 @@ async function sessionUserId(): Promise<number | null> {
   const expected = Buffer.from(sign(`${id}.${exp}`));
   const given = Buffer.from(sig);
   if (expected.length !== given.length || !timingSafeEqual(expected, given)) return null;
-  if (Number(exp) < Date.now() / 1000) return null;
-  return Number(id);
+  const now = Date.now() / 1000;
+  if (Number(exp) < now) return null;
+  // คุกกี้แบบเก่า (อายุ 14 วัน) ใช้ไม่ได้แล้ว → ทุกคนต้องล็อกอินใหม่ภายใต้กติกา 1 วัน
+  if (Number(exp) > now + MAX_AGE + 300) return null;
+  return { id: Number(id), exp: Number(exp) };
+}
+
+async function sessionUserId(): Promise<number | null> {
+  return (await readSession())?.id ?? null;
+}
+
+/** เวลาที่ session ปัจจุบันหมดอายุ (มิลลิวินาที) หรือ null ถ้าไม่ได้ล็อกอิน */
+export async function sessionExpiresAt(): Promise<number | null> {
+  const s = await readSession();
+  return s ? s.exp * 1000 : null;
 }
 
 export type SessionUser = { id: number; username: string; displayName: string; role: "admin" | "user"; status: "active" | "pending" };

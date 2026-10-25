@@ -26,6 +26,8 @@ export type DonationSession = {
 };
 
 export type Donation = {
+  /** donation_ref เต็ม (completeSession ส่งคืนค่าเดียวกับ ref) */
+  id?: string;
   ref: string;
   donorName: string;
   message: string;
@@ -206,6 +208,7 @@ export async function listDonations(recipientId: number, limit = 50): Promise<Do
     [recipientId, limit]
   );
   return rows.map((r) => ({
+    id: r.donation_ref,
     ref: r.donation_ref.slice(0, 8).toUpperCase(),
     donorName: r.donor_name ?? "ไม่ระบุชื่อ",
     message: r.message ?? "",
@@ -269,4 +272,73 @@ export async function widgetOnline(userId: number) {
     [userId]
   );
   return Number(r?.ok ?? 0) === 1;
+}
+
+/**
+ * ผู้ดูแลอนุมัติรายการเอง (ระบบอ่านสลิปพลาด แต่ตรวจดูสลิปแล้วเงินเข้าจริง)
+ * ใช้ยอดที่ระบุตอนสร้าง QR เป็นยอดที่ได้รับ แล้วส่งแจ้งเตือนขึ้นจอตามปกติ
+ */
+export async function approveManually(donationId: number, adminId: number): Promise<"OK" | "NOT_FOUND" | "ALREADY" | "NO_SLIP"> {
+  const conn = await db().getConnection();
+  let info: { ref: string; recipient: number; donor: string | null; message: string | null; amount: number } | null = null;
+  try {
+    await conn.beginTransaction();
+    const [rows] = await conn.query<RowDataPacket[]>(
+      "SELECT id, donation_ref, recipient_user_id, donor_name, message, expected_amount, status FROM donations WHERE id = ? FOR UPDATE",
+      [donationId]
+    );
+    const d = rows[0];
+    if (!d) {
+      await conn.rollback();
+      return "NOT_FOUND";
+    }
+    if (d.status === "verified") {
+      await conn.rollback();
+      return "ALREADY";
+    }
+    const [slips] = await conn.query<RowDataPacket[]>("SELECT id FROM payment_slips WHERE donation_id = ? ORDER BY id DESC LIMIT 1", [donationId]);
+    if (!slips[0]) {
+      await conn.rollback();
+      return "NO_SLIP";
+    }
+    await conn.query(
+      `INSERT INTO payment_verifications (slip_id, provider, transaction_ref, amount, verification_status, response_code)
+       VALUES (?, 'manual', NULL, ?, 'verified', ?)`,
+      [slips[0].id, d.expected_amount, `ADMIN_${adminId}`.slice(0, 50)]
+    );
+    await conn.query("UPDATE donations SET status = 'verified', paid_amount = expected_amount, verified_at = CURRENT_TIMESTAMP WHERE id = ?", [donationId]);
+    await conn.commit();
+    info = { ref: d.donation_ref, recipient: Number(d.recipient_user_id), donor: d.donor_name, message: d.message, amount: Number(d.expected_amount) };
+  } catch (e) {
+    await conn.rollback().catch(() => {});
+    throw e;
+  } finally {
+    conn.release();
+  }
+  await emitAlert(info.recipient, {
+    type: "donation",
+    id: info.ref,
+    donorName: info.donor ?? "ไม่ระบุชื่อ",
+    message: info.message ?? "",
+    amount: info.amount,
+  }).catch((e) => console.error("ส่งแจ้งเตือนไป widget ไม่สำเร็จ", e));
+  return "OK";
+}
+
+/** ส่งแจ้งเตือนของรายการเดิมขึ้นจออีกครั้ง (เฉพาะรายการที่ผ่านแล้วของสตรีมเมอร์คนนั้น) */
+export async function replayAlert(userId: number, donationRef: string) {
+  const [d] = await query<RowDataPacket & { donor_name: string | null; message: string | null; amt: number }>(
+    `SELECT donor_name, message, COALESCE(paid_amount, expected_amount) AS amt FROM donations
+     WHERE recipient_user_id = ? AND donation_ref = ? AND status = 'verified'`,
+    [userId, donationRef]
+  );
+  if (!d) return false;
+  await emitAlert(userId, {
+    type: "donation",
+    id: `${donationRef}-replay-${Date.now()}`,
+    donorName: d.donor_name ?? "ไม่ระบุชื่อ",
+    message: d.message ?? "",
+    amount: Number(d.amt),
+  });
+  return true;
 }

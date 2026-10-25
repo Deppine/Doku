@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 // กันสมัครรัวจากที่เดียว: 5 บัญชี / ชั่วโมง ต่อ IP (เก็บในฐานข้อมูล)
 
 export async function POST(req: Request) {
-  if (!registrationOpen()) return NextResponse.json({ message: "ปิดรับสมัครอยู่ ติดต่อผู้ดูแลเพื่อขอบัญชี" }, { status: 403 });
+  if (!(await registrationOpen())) return NextResponse.json({ message: "ปิดรับสมัครอยู่ ติดต่อผู้ดูแลเพื่อขอบัญชี" }, { status: 403 });
 
   const key = `register:${clientIp(req)}`;
   if (await isLimited(key, 5)) {

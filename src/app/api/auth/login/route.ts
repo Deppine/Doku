@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { homeFor, safeNext, startSession, verifyLogin } from "@/lib/auth";
-import { query, type RowDataPacket } from "@/lib/db";
+import { exec, query, type RowDataPacket } from "@/lib/db";
 import { clientIp, hit, isLimited, reset } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -24,6 +24,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: "บัญชีนี้ถูกระงับ ติดต่อผู้ดูแลระบบ" }, { status: 403 });
   }
   await startSession(userId);
+  await exec("UPDATE users SET last_login_at = NOW() WHERE id = ?", [userId]).catch(() => {}); // ยังไม่ migrate ก็ไม่เป็นไร
   const role = u?.role === "admin" && u.status === "active" ? "admin" : "user";
   return NextResponse.json({ ok: true, role, redirect: safeNext(body?.next) ?? homeFor(role) });
 }

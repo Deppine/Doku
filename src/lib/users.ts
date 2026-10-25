@@ -117,10 +117,8 @@ export function registrationNeedsApproval() {
   return process.env.REGISTRATION_APPROVAL !== "false";
 }
 
-/** เปิดให้สมัครเองได้ไหม (ตั้ง REGISTRATION_OPEN=false ใน .env.local เพื่อปิด ให้ผู้ดูแลสร้างบัญชีอย่างเดียว) */
-export function registrationOpen() {
-  return process.env.REGISTRATION_OPEN !== "false";
-}
+
+export { registrationOpen } from "./app-settings";
 
 export async function usernameTaken(username: string) {
   const rows = await query<RowDataPacket>("SELECT 1 FROM users WHERE username = ? LIMIT 1", [username]);

@@ -94,7 +94,7 @@ export function UserList({ users, meId }: { users: UserRow[]; meId: number }) {
   );
 }
 
-function UserItem({ u, isMe }: { u: UserRow; isMe: boolean }) {
+export function UserItem({ u, isMe }: { u: UserRow; isMe: boolean }) {
   const router = useRouter();
   const [mode, setMode] = useState<"idle" | "password">("idle");
   const [password, setPassword] = useState("");

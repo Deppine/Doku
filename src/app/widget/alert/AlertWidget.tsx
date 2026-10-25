@@ -10,7 +10,19 @@ type Incoming = AlertData & { id: string; test?: boolean };
 const SHOW_MS = 7000; // แสดงค้างต่อ 1 รายการ
 const GAP_MS = 800; // เว้นระยะระหว่างรายการ
 
-export function AlertWidget({ token, tts, variant, debug = false }: { token: string; tts: boolean; variant: "classic" | "card"; debug?: boolean }) {
+export function AlertWidget({
+  token,
+  tts,
+  variant: forced,
+  debug = false,
+}: {
+  token: string;
+  tts: boolean;
+  variant: "classic" | "card" | null; // จากลิงก์ (&style=) · null = ตามที่ตั้งในแดชบอร์ด
+  debug?: boolean;
+}) {
+  const [style, setStyle] = useState<"classic" | "card">(forced ?? "classic");
+  const variant = forced ?? style;
   // ?debug=1: แสดงบันทึกการทำงานบนจอ ใช้หาว่าเสียง/การเชื่อมต่อติดตรงไหน
   const [logs, setLogs] = useState<string[]>([]);
   const addLog = useRef((msg: string) => {});
@@ -45,7 +57,10 @@ export function AlertWidget({ token, tts, variant, debug = false }: { token: str
     let offlineTimer: ReturnType<typeof setTimeout> | undefined;
     es.addEventListener("ready", (e) => {
       const data = JSON.parse((e as MessageEvent).data);
-      if (data.sound) sound.current = data.sound;
+      if (data.sound) {
+        sound.current = data.sound;
+        if (data.sound.alertStyle) setStyle(data.sound.alertStyle);
+      }
       addLog.current(`เชื่อมต่อแล้ว · เสียงอ่าน: ${data.sound?.ttsServerUrl && data.sound?.ttsEngine !== "browser" ? "เซิร์ฟเวอร์" : "ในเครื่อง"} · tts=${tts ? "เปิด" : "ปิด"}`);
       clearTimeout(offlineTimer);
       setStatus("online");
@@ -59,6 +74,7 @@ export function AlertWidget({ token, tts, variant, debug = false }: { token: str
     // ตั้งค่าเสียงในแดชบอร์ดแล้วมีผลทันที ไม่ต้องรีเฟรช OBS
     es.addEventListener("settings", (e) => {
       sound.current = JSON.parse((e as MessageEvent).data);
+      if (sound.current.alertStyle) setStyle(sound.current.alertStyle);
       addLog.current("ได้รับการตั้งค่าเสียงใหม่");
     });
     es.addEventListener("alert", (e) => {

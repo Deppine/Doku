@@ -34,7 +34,7 @@ const STATUS: Record<AdminDonation["status"], { label: string; cls: string }> = 
 };
 
 /** แปลรหัสผลตรวจสลิปเป็นภาษาคน */
-function issueText(i: NonNullable<AdminDonation["lastIssue"]>, expected: number) {
+export function issueText(i: NonNullable<AdminDonation["lastIssue"]>, expected: number) {
   switch (i.code) {
     case "AMOUNT_MISMATCH":
       return i.amount != null ? `ยอดในสลิป ฿${baht(i.amount)} ไม่ตรงกับ ฿${baht(expected)}` : "ยอดในสลิปไม่ตรง";
@@ -53,7 +53,7 @@ function issueText(i: NonNullable<AdminDonation["lastIssue"]>, expected: number)
   }
 }
 
-function when(ms: number) {
+export function when(ms: number) {
   return new Date(ms).toLocaleString("th-TH", { timeZone: "Asia/Bangkok", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 

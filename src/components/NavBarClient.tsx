@@ -7,6 +7,7 @@ import { APP_NAME } from "@/lib/format";
 import { ThemeToggle } from "./ThemeToggle";
 import { UserMenu, type NavUser } from "./UserMenu";
 import { LogoMark } from "./Logo";
+import { SessionTimeout } from "./SessionTimeout";
 
 const links = [
   { href: "/", label: "หน้าแรก" },
@@ -14,7 +15,7 @@ const links = [
   { href: "/how-to", label: "วิธีใช้งาน" },
 ];
 
-export function NavBarClient({ user }: { user: NavUser | null }) {
+export function NavBarClient({ user, expiresAt }: { user: NavUser | null; expiresAt?: number | null }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -34,6 +35,8 @@ export function NavBarClient({ user }: { user: NavUser | null }) {
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
   return (
+    <>
+    {user && expiresAt ? <SessionTimeout expiresAt={expiresAt} /> : null}
     <header className={`sticky top-0 z-40 ${open ? "bg-page" : "glass border-b border-line/60"}`}>
       <nav className="mx-auto flex h-12 max-w-[980px] items-center justify-between px-4" aria-label="เมนูหลัก">
         <Link href="/" className="flex items-center gap-2 text-[15px] font-semibold tracking-tight">
@@ -133,11 +136,11 @@ export function NavBarClient({ user }: { user: NavUser | null }) {
         </div>
       )}
     </header>
+    </>
   );
 }
 
 function authedLinks(user: NavUser) {
-  const l = [{ href: "/dashboard", label: "แดชบอร์ด" }];
-  if (user.role === "admin") l.push({ href: "/admin", label: "ผู้ดูแลระบบ" });
-  return l;
+  // ผู้ดูแลไม่มีแดชบอร์ดสตรีมเมอร์
+  return user.role === "admin" ? [{ href: "/admin", label: "ผู้ดูแลระบบ" }] : [{ href: "/dashboard", label: "แดชบอร์ด" }];
 }
