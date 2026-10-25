@@ -4,14 +4,27 @@ import { useMemo, useState } from "react";
 import { baht } from "@/lib/format";
 import type { AdminDonation } from "@/lib/admin-stats";
 
-type Filter = "all" | "verified" | "problem" | "waiting";
+type Filter = "main" | "verified" | "problem" | "noslip";
 
 const FILTERS: { v: Filter; label: string }[] = [
-  { v: "all", label: "ทั้งหมด" },
+  { v: "main", label: "ล่าสุด" },
   { v: "verified", label: "ผ่าน" },
   { v: "problem", label: "มีปัญหา" },
-  { v: "waiting", label: "รอ / หมดอายุ" },
+  { v: "noslip", label: "ไม่ได้ส่งสลิป" },
 ];
+
+const PAGE = 10;
+
+const isProblem = (d: AdminDonation) => d.status === "rejected" || (Boolean(d.lastIssue) && d.status !== "verified");
+/** สร้าง QR แล้วยังไม่ส่งสลิป (กำลังโอน หรือเลิกกลางคัน) — ส่วนใหญ่ไม่ต้องสนใจ */
+const isNoSlip = (d: AdminDonation) => d.status !== "verified" && d.slipCount === 0;
+
+function matches(d: AdminDonation, f: Filter) {
+  if (f === "verified") return d.status === "verified";
+  if (f === "problem") return isProblem(d);
+  if (f === "noslip") return isNoSlip(d);
+  return !isNoSlip(d); // ล่าสุด: ซ่อนรายการที่ไม่ได้ส่งสลิป ให้เห็นแต่ที่ต้องดูจริง
+}
 
 const STATUS: Record<AdminDonation["status"], { label: string; cls: string }> = {
   verified: { label: "ผ่าน", cls: "bg-[#1f9d55]/15 text-[#1f9d55]" },
@@ -45,45 +58,64 @@ function when(ms: number) {
 }
 
 export function DonationFeed({ items }: { items: AdminDonation[] }) {
-  const [filter, setFilter] = useState<Filter>("all");
+  const [filter, setFilter] = useState<Filter>("main");
+  const [streamer, setStreamer] = useState("");
+  const [limit, setLimit] = useState(PAGE);
   const [open, setOpen] = useState<number | null>(null);
 
-  const counts = useMemo(
-    () => ({
-      all: items.length,
-      verified: items.filter((d) => d.status === "verified").length,
-      problem: items.filter((d) => d.status === "rejected" || (d.lastIssue && d.status !== "verified")).length,
-      waiting: items.filter((d) => d.status === "waiting" || (d.status === "expired" && !d.lastIssue)).length,
-    }),
-    [items]
-  );
+  const streamers = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const d of items) m.set(d.streamer.username, d.streamer.displayName);
+    return [...m.entries()];
+  }, [items]);
 
-  const shown = items.filter((d) =>
-    filter === "all"
-      ? true
-      : filter === "verified"
-        ? d.status === "verified"
-        : filter === "problem"
-          ? d.status === "rejected" || (d.lastIssue && d.status !== "verified")
-          : d.status === "waiting" || (d.status === "expired" && !d.lastIssue)
+  const byStreamer = streamer ? items.filter((d) => d.streamer.username === streamer) : items;
+  const counts = useMemo(
+    () => Object.fromEntries(FILTERS.map((f) => [f.v, byStreamer.filter((d) => matches(d, f.v)).length])) as Record<Filter, number>,
+    [byStreamer]
   );
+  const all = byStreamer.filter((d) => matches(d, filter));
+  const shown = all.slice(0, limit);
 
   return (
     <div className="mt-4">
-      <div role="tablist" aria-label="กรองรายการ" className="flex flex-wrap gap-1 rounded-full bg-fill p-1 text-[13px] sm:inline-flex">
-        {FILTERS.map((f) => (
-          <button
-            key={f.v}
-            role="tab"
-            aria-selected={filter === f.v}
-            onClick={() => setFilter(f.v)}
-            className={`rounded-full px-3 py-1.5 font-medium transition-all ${
-              filter === f.v ? "bg-chip text-ink shadow-[0_2px_6px_rgb(0_0_0/0.12)]" : "text-ink-2 hover:text-ink"
-            }`}
+      <div className="flex flex-wrap items-center gap-2">
+        <div role="tablist" aria-label="กรองรายการ" className="flex flex-wrap gap-1 rounded-full bg-fill p-1 text-[13px] sm:inline-flex">
+          {FILTERS.map((f) => (
+            <button
+              key={f.v}
+              role="tab"
+              aria-selected={filter === f.v}
+              onClick={() => {
+                setFilter(f.v);
+                setLimit(PAGE);
+              }}
+              className={`rounded-full px-3 py-1.5 font-medium transition-all ${
+                filter === f.v ? "bg-chip text-ink shadow-[0_2px_6px_rgb(0_0_0/0.12)]" : "text-ink-2 hover:text-ink"
+              }`}
+            >
+              {f.label} <span className="tabular-nums text-ink-3">{counts[f.v]}</span>
+            </button>
+          ))}
+        </div>
+        {streamers.length > 1 && (
+          <select
+            aria-label="สตรีมเมอร์"
+            value={streamer}
+            onChange={(e) => {
+              setStreamer(e.target.value);
+              setLimit(PAGE);
+            }}
+            className="rounded-full bg-fill px-3 py-2 text-[13px] font-medium text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-red/40"
           >
-            {f.label} <span className="tabular-nums text-ink-3">{counts[f.v]}</span>
-          </button>
-        ))}
+            <option value="">ทุกสตรีมเมอร์</option>
+            {streamers.map(([u, name]) => (
+              <option key={u} value={u}>
+                {name}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
 
       {shown.length === 0 ? (
@@ -120,6 +152,11 @@ export function DonationFeed({ items }: { items: AdminDonation[] }) {
             );
           })}
         </ul>
+      )}
+      {all.length > limit && (
+        <button type="button" onClick={() => setLimit((n) => n + PAGE)} className="btn-quiet mx-auto mt-3 block text-[15px]">
+          ดูเพิ่ม ({all.length - limit} รายการ)
+        </button>
       )}
     </div>
   );

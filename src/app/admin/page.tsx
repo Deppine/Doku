@@ -16,7 +16,7 @@ export default async function AdminPage() {
   if (!me) redirect("/login?next=/admin");
   if (me.role !== "admin") redirect("/dashboard");
 
-  const [users, stats, donations] = await Promise.all([listUsers(), adminStats(), recentDonations(50)]);
+  const [users, stats, donations] = await Promise.all([listUsers(), adminStats(), recentDonations(100)]);
   const pending = users.filter((u) => u.status === "pending");
   const others = users.filter((u) => u.status !== "pending");
   const regText = !registrationOpen()
@@ -50,7 +50,7 @@ export default async function AdminPage() {
 
           <section className="mt-12">
             <h2 className="text-[22px] font-semibold tracking-tight">โดเนทล่าสุด</h2>
-            <p className="mt-1 text-[15px] text-ink-2">50 รายการล่าสุดของทุกสตรีมเมอร์ กดที่รายการเพื่อดูสลิปและเหตุผลที่ไม่ผ่าน</p>
+            <p className="mt-1 text-[15px] text-ink-2">รายการที่ส่งสลิปแล้ว กดที่รายการเพื่อดูสลิปและเหตุผลที่ไม่ผ่าน</p>
             <DonationFeed items={donations} />
           </section>
 
