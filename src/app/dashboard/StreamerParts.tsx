@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { baht } from "@/lib/format";
 import type { AlertStyle } from "@/lib/alert-style";
+import { Mascot } from "@/components/Mascot";
+import type { GoalStyle } from "@/lib/streamer-stats";
 
 /** ปุ่มคัดลอกข้อความ */
 export function CopyButton({ value, label, className }: { value: string; label: string; className?: string }) {
@@ -194,7 +196,7 @@ export function DonationList({ items }: { items: FeedItem[] }) {
   );
 }
 
-type Goal = { title: string; target: number; raised: number } | null;
+type Goal = { title: string; target: number; raised: number; style: GoalStyle } | null;
 
 /** เป้าหมายโดเนท: แสดงความคืบหน้า แก้ไข/ลบได้ */
 export function GoalCard({ goal, widgetUrl }: { goal: Goal; widgetUrl: string }) {
@@ -301,15 +303,126 @@ export function GoalCard({ goal, widgetUrl }: { goal: Goal; widgetUrl: string })
           <div aria-hidden className="mt-2.5 h-2.5 rounded-full bg-fill">
             <div className="h-2.5 rounded-full bg-red" style={{ width: `${Math.max(2, pct)}%` }} />
           </div>
+          <GoalStylePicker initial={goal.style} />
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <CopyButton value={widgetUrl} label="คัดลอกลิงก์แถบเป้าหมาย (OBS)" className="rounded-full bg-fill px-3.5 py-2 text-[13px] font-semibold text-ink" />
+            <CopyButton value={widgetUrl} label="คัดลอกลิงก์หลอดเป้าหมาย (OBS)" className="rounded-full bg-fill px-3.5 py-2 text-[13px] font-semibold text-ink" />
           </div>
-          <p className="mt-2 text-[12px] text-ink-3">ใน OBS เพิ่ม Browser Source ขนาด 600 × 160 พื้นหลังโปร่งใส</p>
         </>
       ) : (
         <p className="mt-3 text-[14px] text-ink-2">ตั้งเป้า เช่น &quot;ซื้อไมค์ใหม่ ฿5,000&quot; แล้วเอาแถบความคืบหน้าขึ้นจอไลฟ์ให้ผู้ชมช่วยกันเติม</p>
       )}
     </section>
+  );
+}
+
+/** เลือกหน้าตาหลอดเป้าหมาย (บันทึกทันที OBS เปลี่ยนตามในไม่เกิน 10 วินาที) */
+function GoalStylePicker({ initial }: { initial: GoalStyle }) {
+  const [style, setStyle] = useState<GoalStyle>(initial);
+  const [err, setErr] = useState<string | null>(null);
+  async function pick(next: GoalStyle) {
+    const prev = style;
+    setStyle(next);
+    setErr(null);
+    const res = await fetch("/api/dashboard/goal", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ style: next }),
+    });
+    if (!res.ok) {
+      setStyle(prev);
+      setErr((await res.json().catch(() => ({}))).message ?? "บันทึกไม่สำเร็จ");
+    }
+  }
+  const opts: { v: GoalStyle; label: string; size: string; preview: ReactNode }[] = [
+    {
+      v: "neon",
+      label: "แคปซูลนีออน",
+      size: "600 × 160",
+      preview: (
+        <span className="w-[82%] rounded-lg bg-[rgba(30,12,14,.95)] p-1.5 shadow-[0_0_0_1px_rgba(255,59,48,.5)]">
+          <span className="block h-2 rounded-full bg-white/10">
+            <span className="block h-2 w-[65%] rounded-full bg-[linear-gradient(90deg,#c40000,#ff3b30)] shadow-[0_0_8px_rgba(255,59,48,.8)]" />
+          </span>
+        </span>
+      ),
+    },
+    {
+      v: "tube",
+      label: "หลอดแก้วเก็บเงิน",
+      size: "360 × 640",
+      preview: (
+        <span className="relative h-[70%] w-5 overflow-hidden rounded-full bg-white/10 shadow-[inset_0_0_0_1.5px_rgba(255,255,255,.3)]">
+          <span className="absolute inset-x-0 bottom-0 h-[65%] bg-[linear-gradient(180deg,#ff5a4f,#c40000)]" />
+        </span>
+      ),
+    },
+    {
+      v: "ring",
+      label: "วงแหวนมุมจอ",
+      size: "300 × 90",
+      preview: (
+        <span className="flex items-center gap-1 rounded-full bg-[rgba(10,10,12,.9)] py-0.5 pl-0.5 pr-2 shadow-[0_0_0_1px_rgba(255,255,255,.1)]">
+          <span className="grid size-6 place-items-center rounded-full bg-[conic-gradient(#ff3b30_234deg,rgba(255,255,255,.15)_0deg)]">
+            <span className="size-[18px] rounded-full bg-[#121214]" />
+          </span>
+          <span className="h-1.5 w-7 rounded-full bg-white/40" />
+        </span>
+      ),
+    },
+    {
+      v: "edge",
+      label: "เส้นขอบจอ",
+      size: "1920 × 80 (วางชิดขอบล่าง)",
+      preview: (
+        <span className="relative block h-full w-full">
+          <span className="absolute bottom-2 left-[58%] h-2 w-8 -translate-x-1/2 rounded-full bg-[rgba(10,10,12,.9)] shadow-[0_0_0_1px_rgba(255,59,48,.6)]" />
+          <span className="absolute inset-x-0 bottom-0 h-[3px] bg-white/10">
+            <span className="block h-full w-[65%] bg-[#ff3b30] shadow-[0_0_6px_rgba(255,59,48,.9)]" />
+          </span>
+        </span>
+      ),
+    },
+    {
+      v: "basic",
+      label: "แบบเรียบ",
+      size: "600 × 160",
+      preview: (
+        <span className="w-[82%] rounded-lg bg-[#1c1c1e] p-1.5">
+          <span className="block h-2 rounded-full bg-white/15">
+            <span className="block h-2 w-[65%] rounded-full bg-[#ff3b30]" />
+          </span>
+        </span>
+      ),
+    },
+  ];
+  const cur = opts.find((o) => o.v === style) ?? opts[0];
+  return (
+    <div className="mt-4">
+      <p className="text-[13px] text-ink-2">หน้าตาบนจอไลฟ์</p>
+      <div role="radiogroup" aria-label="หน้าตาหลอดเป้าหมาย" className="mt-1.5 grid grid-cols-3 gap-2 sm:grid-cols-5 lg:grid-cols-3">
+        {opts.map((o) => (
+          <button
+            key={o.v}
+            type="button"
+            role="radio"
+            aria-checked={style === o.v}
+            onClick={() => style !== o.v && pick(o.v)}
+            className={`rounded-xl border-2 bg-paper p-1.5 text-left ${style === o.v ? "border-red" : "border-line hover:border-ink-3"}`}
+          >
+            <span aria-hidden className="relative grid h-14 place-items-center overflow-hidden rounded-lg bg-[linear-gradient(180deg,#141821,#0b0d12)]">
+              {o.preview}
+            </span>
+            <span className="mt-1 block px-0.5 text-[12px] font-semibold leading-tight">{o.label}</span>
+          </button>
+        ))}
+      </div>
+      {err && (
+        <p role="alert" className="mt-1.5 text-[13px] text-red">
+          {err}
+        </p>
+      )}
+      <p className="mt-2 text-[12px] text-ink-3">ใน OBS เพิ่ม Browser Source ขนาด {cur.size} พื้นหลังโปร่งใส</p>
+    </div>
   );
 }
 
@@ -437,10 +550,41 @@ export function AlertStylePicker({ initial }: { initial: AlertStyle }) {
         </span>
       ),
     },
+    {
+      v: "sign",
+      label: "โดกูชูป้าย",
+      preview: (
+        <span className="absolute bottom-0 left-2 flex items-end">
+          <Mascot className="block w-9" eyes="happy" wave />
+          <span className="mb-6 -ml-1 rounded-md bg-white px-1.5 py-0.5 text-[10px] font-bold text-[#1d1d1f]">
+            มีมี่ <span className="text-[#e10600]">฿50</span>
+          </span>
+        </span>
+      ),
+    },
+    {
+      v: "announce",
+      label: "โดกูประกาศ",
+      preview: (
+        <span className="absolute inset-x-0 bottom-0 flex items-end gap-1 bg-[linear-gradient(180deg,transparent,rgba(0,0,0,.7))] px-2 pb-1.5 pt-3">
+          <Mascot className="-mb-1.5 block w-7" mouth="talk" />
+          <span className="text-[10px] font-bold leading-tight text-white">
+            <span className="rounded-sm bg-[#e10600] px-1 text-[8px]">📢 ประกาศ</span>
+            <br />
+            มีมี่ <span className="text-[#ff5a4f]">฿50</span>
+          </span>
+        </span>
+      ),
+    },
   ];
-  // แบบการ์ดขาวเลิกใช้แล้ว: โชว์เฉพาะคนที่ยังเลือกไว้ จะได้รู้ว่าตอนนี้ใช้แบบไหน
+  // แบบที่เลิกให้เลือกแล้ว (นีออน ป้ายเด้ง ป้ายไฟ LED การ์ดขาว): วิดเจ็ตยังแสดงได้
+  // โชว์ในตัวเลือกเฉพาะคนที่ยังใช้อยู่ จะได้รู้ว่าตอนนี้ใช้แบบไหน และเปลี่ยนไปแบบใหม่ได้
+  const retired: AlertStyle[] = ["neon", "pop", "led"];
+  const shown = opts
+    .filter((o) => !retired.includes(o.v) || o.v === initial)
+    .map((o) => (retired.includes(o.v) ? { ...o, label: `${o.label} (แบบเก่า)` } : o));
   if (initial === "card") {
-    opts.push({
+    shown.push({
       v: "card",
       label: "การ์ดขาว (แบบเก่า)",
       preview: (
@@ -455,8 +599,8 @@ export function AlertStylePicker({ initial }: { initial: AlertStyle }) {
   return (
     <div>
       <p className="text-[14px] font-semibold">รูปแบบแจ้งเตือน</p>
-      <div role="radiogroup" aria-label="รูปแบบแจ้งเตือน" className="mt-2 grid grid-cols-2 gap-2.5 lg:grid-cols-4">
-        {opts.map((o) => (
+      <div role="radiogroup" aria-label="รูปแบบแจ้งเตือน" className="mt-2 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+        {shown.map((o) => (
           <button
             key={o.v}
             type="button"

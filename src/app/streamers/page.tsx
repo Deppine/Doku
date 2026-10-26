@@ -3,6 +3,7 @@ import Link from "next/link";
 import { NavBar } from "@/components/NavBar";
 import { Footer } from "@/components/Footer";
 import { getStreamers } from "@/lib/streamers";
+import { PageBackdrop } from "@/components/PageBackdrop";
 
 export const metadata: Metadata = { title: "สตรีมเมอร์" };
 export const dynamic = "force-dynamic";
@@ -12,7 +13,8 @@ export default async function StreamersPage() {
   return (
     <>
       <NavBar />
-      <main className="min-h-dvh bg-paper">
+      <main className="relative isolate min-h-dvh overflow-hidden bg-paper">
+        <PageBackdrop />
         <div className="mx-auto max-w-[980px] px-4 pb-24 pt-14">
           <h1 className="display text-[clamp(40px,6vw,64px)]">สตรีมเมอร์</h1>
           <p className="mt-3 max-w-[48ch] text-[19px] text-ink-2">เลือกคนที่อยากสนับสนุน แล้วโดเนทขึ้นจอไลฟ์ได้เลย</p>

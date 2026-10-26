@@ -2,6 +2,10 @@ import Link from "next/link";
 import { NavBar } from "@/components/NavBar";
 import { Footer } from "@/components/Footer";
 import { AlertDemo } from "@/components/AlertDemo";
+import { Mascot } from "@/components/Mascot";
+import { CosmosScene } from "@/components/CosmosScene";
+import { MascotHelper } from "@/components/MascotHelper";
+import { PartnerStrip } from "@/components/PartnerStrip";
 import { getStreamers } from "@/lib/streamers";
 
 
@@ -71,21 +75,26 @@ export default async function Home() {
             </div>
 
             {/* จอไลฟ์จำลองขนาดใหญ่: ให้เห็นของจริงที่ผู้ชมจะได้เห็น (มืดเสมอ เหมือนฉากเกมใน OBS) */}
-            <div className="@container relative mx-auto mt-14 aspect-video max-w-[1040px] overflow-hidden rounded-[20px] bg-[#15171c] shadow-[0_60px_140px_-40px_rgb(225_6_0/0.55),0_0_0_1px_rgb(255_255_255/0.07)] sm:rounded-[28px]">
-              <div
-                aria-hidden
-                className="absolute inset-0 bg-[radial-gradient(90%_70%_at_20%_110%,#3a1d2a_0%,transparent_60%),radial-gradient(80%_70%_at_90%_-10%,#1d2a44_0%,transparent_60%)]"
-              />
+            <div className="relative mx-auto mt-20 max-w-[1040px] sm:mt-24">
+            {/* โดกูแอบดูจากหลังขอบบนของจอ (ครึ่งล่างถูกตัดด้วย overflow-hidden ให้ดูเหมือนซ่อนอยู่หลังจอ) */}
+            <div aria-hidden className="absolute bottom-full right-[7%] h-[clamp(52px,10.4vw,108px)] w-[clamp(70px,14vw,150px)] overflow-hidden">
+              <div className="home-peek absolute inset-x-0 top-[6%]">
+                <Mascot className="block w-full" wave />
+              </div>
+            </div>
+            <div className="@container relative aspect-video overflow-hidden rounded-[20px] bg-[#15171c] shadow-[0_60px_140px_-40px_rgb(225_6_0/0.55),0_0_0_1px_rgb(255_255_255/0.07)] sm:rounded-[28px]">
+              <CosmosScene />
               <span aria-hidden className="absolute left-3 top-3 rounded-md bg-[#e10600] px-2 py-0.5 text-[11px] font-bold text-white sm:left-5 sm:top-[18px] sm:text-[12px]">
                 LIVE
               </span>
-              <div className="absolute inset-0 flex items-center justify-center pb-[4%]">
-                <AlertDemo />
-              </div>
-              <p className="absolute bottom-3 left-0 right-0 text-[12px] text-white/45 sm:bottom-4">ตัวอย่างแจ้งเตือนบนจอไลฟ์</p>
+              <AlertDemo />
+              <p className="absolute right-3 top-3 text-[12px] text-white/45 sm:right-5 sm:top-[18px]">ตัวอย่างแจ้งเตือนบนจอไลฟ์</p>
+            </div>
             </div>
           </section>
         </div>
+
+        <PartnerStrip />
 
         {/* แถบตัวเลข */}
         <section aria-label="จุดเด่นแบบตัวเลข" className="mx-auto max-w-[980px] px-4">
@@ -115,9 +124,15 @@ export default async function Home() {
 
         <section className="mx-auto max-w-[980px] px-4 pb-28 pt-16">
           <h2 className="display mx-auto max-w-[16ch] text-center text-[clamp(32px,5vw,48px)]">สามขั้นตอนจากผู้ชมถึงหน้าจอ</h2>
-          <div className="relative mt-14">
+          <div className="relative mt-14 sm:mt-24">
             {/* เส้นเชื่อมระหว่างขั้นตอน (จอกว้างเท่านั้น) */}
             <div aria-hidden className="absolute left-[16.6%] right-[16.6%] top-5 hidden h-0.5 bg-gradient-to-r from-red to-red/20 sm:block" />
+            {/* โดกูเดินตามเส้น หยุดที่ขั้นตอน 1 → 2 → 3 (จอกว้างเท่านั้น) */}
+            <div aria-hidden className="home-walker absolute -top-[68px] left-[16.6%] hidden w-0 sm:block">
+              <div className="home-walker-bob -translate-x-1/2">
+                <Mascot className="block w-[60px]" />
+              </div>
+            </div>
             <ol className="relative grid gap-10 sm:grid-cols-3 sm:gap-6">
               {steps.map((s, i) => (
                 <li key={s} className="flex items-start gap-4 sm:flex-col sm:items-center sm:text-center">
@@ -129,6 +144,7 @@ export default async function Home() {
           </div>
         </section>
       </main>
+      <MascotHelper />
       <Footer />
     </>
   );

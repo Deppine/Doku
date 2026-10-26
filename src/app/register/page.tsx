@@ -5,6 +5,7 @@ import { NavBar } from "@/components/NavBar";
 import { currentUser, homeFor } from "@/lib/auth";
 import { registrationOpen } from "@/lib/users";
 import { RegisterForm } from "./RegisterForm";
+import { PageBackdrop } from "@/components/PageBackdrop";
 
 export const metadata: Metadata = { title: "สมัครสมาชิก" };
 export const dynamic = "force-dynamic";
@@ -17,7 +18,8 @@ export default async function RegisterPage() {
   return (
     <>
       <NavBar />
-      <main className="min-h-dvh bg-paper">
+      <main className="relative isolate min-h-dvh overflow-hidden bg-paper">
+        <PageBackdrop />
         <div className="mx-auto max-w-[400px] px-4 py-20 text-center">
           <h1 className="display text-[40px]">สมัครสมาชิก</h1>
           <p className="mt-3 text-ink-2 [text-wrap:balance]">สร้างหน้ารับโดเนทของคุณ เงินเข้าพร้อมเพย์ของคุณโดยตรง</p>

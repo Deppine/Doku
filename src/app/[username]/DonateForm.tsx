@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { MAX_DONATION, baht } from "@/lib/format";
+import { MAX_DONATION, MAX_MESSAGE, baht } from "@/lib/format";
 import type { SlipMode } from "@/lib/slip";
 
 type Props = {
@@ -169,14 +169,14 @@ export function DonateForm({ username, minAmount, presets, allowCustom, receiver
         <label className="block">
           <span className="sr-only">ข้อความ</span>
           <textarea
-            maxLength={255}
+            maxLength={MAX_MESSAGE}
             rows={3}
             placeholder="ข้อความที่จะขึ้นจอ"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             className="row-field resize-none"
           />
-          <span className="block px-4 pb-3 text-right text-[12px] text-ink-3 tabular-nums">{message.length}/255</span>
+          <span className="block px-4 pb-3 text-right text-[12px] text-ink-3 tabular-nums">{message.length}/{MAX_MESSAGE}</span>
         </label>
       </div>
 

@@ -6,6 +6,7 @@ import { DonateForm } from "./DonateForm";
 import { findStreamer } from "@/lib/streamers";
 import { maskPromptPay } from "@/lib/promptpay";
 import { slipMode } from "@/lib/slip";
+import { PageBackdrop } from "@/components/PageBackdrop";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,8 @@ export default async function DonatePage({ params }: Props) {
   return (
     <>
       <NavBar />
-      <main className="min-h-dvh bg-paper">
+      <main className="relative isolate min-h-dvh overflow-hidden bg-paper">
+        <PageBackdrop />
         <div className="mx-auto max-w-[560px] px-4 pb-20 pt-12">
           <header className="text-center">
             <div

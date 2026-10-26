@@ -3,7 +3,7 @@ import QRCode from "qrcode";
 import { findStreamer } from "@/lib/streamers";
 import { buildPromptPayPayload } from "@/lib/promptpay";
 import { createSession } from "@/lib/store";
-import { MAX_DONATION, baht } from "@/lib/format";
+import { MAX_DONATION, MAX_MESSAGE, baht } from "@/lib/format";
 
 export const runtime = "nodejs";
 
@@ -21,7 +21,7 @@ export async function POST(req: Request) {
   if (!streamer.promptpayId) return NextResponse.json({ message: "สตรีมเมอร์ยังไม่ได้ตั้งค่าบัญชีรับเงิน" }, { status: 409 });
 
   const donorName = (body.donorName ?? "").trim().slice(0, 40) || "ไม่ระบุชื่อ";
-  const message = (body.message ?? "").trim().slice(0, 255);
+  const message = (body.message ?? "").trim().slice(0, MAX_MESSAGE);
   // ปัดเป็นสตางค์ และบวกเศษสตางค์สุ่มได้ถ้าต้องการแยกรายการที่ยอดเท่ากัน
   const amount = Math.round(Number(body.amount) * 100) / 100;
 

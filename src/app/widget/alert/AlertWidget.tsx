@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AlertCard, type AlertData } from "@/components/AlertCard";
 import { AlertClassic } from "@/components/AlertClassic";
-import { AlertLed, AlertNeon, AlertPop } from "@/components/AlertStyles";
+import { AlertAnnounce, AlertLed, AlertNeon, AlertPop, AlertSign } from "@/components/AlertStyles";
 import type { AlertStyle } from "@/lib/alert-style";
 import { DEFAULT_SOUND, playAlert, setAudioLogger, type AlertSoundSettings } from "@/lib/alert-sound";
 
@@ -126,6 +126,10 @@ export function AlertWidget({
           <AlertPop key={current.id} data={current} leaving={leaving} />
         ) : variant === "led" ? (
           <AlertLed key={current.id} data={current} leaving={leaving} showMs={SHOW_MS} />
+        ) : variant === "sign" ? (
+          <AlertSign key={current.id} data={current} leaving={leaving} />
+        ) : variant === "announce" ? (
+          <AlertAnnounce key={current.id} data={current} leaving={leaving} />
         ) : variant === "card" ? (
           <AlertCard key={current.id} data={current} className={leaving ? "alert-out" : "alert-in"} />
         ) : (

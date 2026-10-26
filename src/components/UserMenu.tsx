@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { LogoutDialog } from "./LogoutButton";
 
 export type NavUser = { username: string; displayName: string; role: "admin" | "user" };
 
 /** ปุ่มวงกลมชื่อผู้ใช้ กดแล้วมีเมนู แดชบอร์ด / ผู้ดูแลระบบ / ออกจากระบบ */
 export function UserMenu({ user }: { user: NavUser }) {
   const [open, setOpen] = useState(false);
+  const [confirm, setConfirm] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -60,13 +62,22 @@ export function UserMenu({ user }: { user: NavUser }) {
               </MenuLink>
             </>
           )}
-          <form action="/api/auth/logout" method="post" className="mt-1 border-t border-line/60 pt-1">
-            <button type="submit" role="menuitem" className="w-full rounded-xl px-3 py-2 text-left text-red hover:bg-fill">
+          <div className="mt-1 border-t border-line/60 pt-1">
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                setConfirm(true);
+              }}
+              className="w-full rounded-xl px-3 py-2 text-left text-red hover:bg-fill"
+            >
               ออกจากระบบ
             </button>
-          </form>
+          </div>
         </div>
       )}
+      <LogoutDialog open={confirm} onClose={() => setConfirm(false)} />
     </div>
   );
 }

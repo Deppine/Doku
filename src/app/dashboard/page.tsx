@@ -8,13 +8,14 @@ import { listDonations } from "@/lib/store";
 import { currentUser } from "@/lib/auth";
 import { baht } from "@/lib/format";
 import { getGoal, streamerOverview } from "@/lib/streamer-stats";
-import { CopyField, LogoutButton, RegenerateWidgetButton } from "./DashboardClient";
+import { CopyField, RegenerateWidgetButton } from "./DashboardClient";
 import { QrSection } from "./QrSection";
 import { SettingsForm } from "./SettingsForm";
 import { SoundSettings } from "./SoundSettings";
 import { AlertStylePicker, CopyButton, DonationList, GoalCard, SettingsTabs, SetupChecklist, TestButton } from "./StreamerParts";
 import { getSoundSettings, toClient } from "@/lib/alert-settings";
 import { maskPromptPay } from "@/lib/promptpay";
+import { PageBackdrop } from "@/components/PageBackdrop";
 
 export const metadata: Metadata = { title: "แดชบอร์ด" };
 export const dynamic = "force-dynamic";
@@ -55,7 +56,8 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   return (
     <>
       <NavBar />
-      <main className="min-h-dvh bg-paper">
+      <main className="relative isolate min-h-dvh overflow-hidden bg-paper">
+        <PageBackdrop />
         <div className="mx-auto max-w-[1180px] px-4 pb-24 pt-8 sm:px-6 sm:pt-10">
           <div className="flex flex-wrap items-start gap-x-4 gap-y-3">
             <div className="min-w-0 flex-[1_1_360px]">
@@ -75,9 +77,6 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
             <div className="flex flex-wrap items-start gap-2">
               <CopyButton value={pageUrl} label="คัดลอกลิงก์โดเนท" />
               <TestButton />
-              <div className="hidden sm:block">
-                <LogoutButton />
-              </div>
             </div>
           </div>
 

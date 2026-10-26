@@ -62,23 +62,6 @@ export function TestAlertButton() {
   );
 }
 
-export function LogoutButton() {
-  const router = useRouter();
-  return (
-    <button
-      type="button"
-      onClick={async () => {
-        await fetch("/api/auth/logout", { method: "POST" });
-        router.replace("/login");
-        router.refresh();
-      }}
-      className="btn-quiet mt-1 px-4 py-2 text-ink-2"
-    >
-      ออกจากระบบ
-    </button>
-  );
-}
-
 /** สร้างลิงก์ widget ใหม่ ใช้เมื่อลิงก์เก่าหลุด (ลิงก์เก่าหยุดทำงานทันที) */
 export function RegenerateWidgetButton() {
   const router = useRouter();

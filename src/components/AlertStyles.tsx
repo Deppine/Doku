@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import { baht } from "@/lib/format";
 import type { AlertData } from "./AlertCard";
+import { Mascot } from "./Mascot";
 
 /**
  * แจ้งเตือนแบบใหม่ 3 แบบ สำหรับ widget OBS (ขนาดอิงความกว้างจอ: ออกแบบไว้ที่ 1920×1080)
@@ -127,6 +128,47 @@ export function AlertLed({ data, leaving, showMs }: Props & { showMs: number }) 
             {msg}
           </span>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/** 5 · โดกูชูป้าย: โผล่จากมุมซ้ายล่าง โบกมือ ชูป้ายขาว */
+export function AlertSign({ data, leaving }: Props) {
+  return (
+    <div className={`fixed bottom-0 left-[2vw] flex items-end ${leaving ? "sign-out" : ""}`}>
+      <div className="sign-peek">
+        <div className="sign-bob">
+          <Mascot className="block w-[11vw]" eyes="happy" wave />
+        </div>
+      </div>
+      <div className="sign-card mb-[6.2vw] ml-[-1.2vw] max-w-[30vw] rounded-[1.2vw] bg-white px-[1.4vw] py-[1vw] text-[#1d1d1f] shadow-[0_0.8vw_2vw_-0.6vw_rgba(0,0,0,.6),inset_0_-0.3vw_0_#e5e5ea]">
+        <p className="text-[1vw] font-bold text-[#e10600]">โดกู ขอบคุณ!</p>
+        <p className="text-[1.9vw] font-bold leading-tight [overflow-wrap:anywhere]">
+          {data.donorName} <span className="amount text-[#e10600]">฿{baht(data.amount)}</span>
+        </p>
+        {data.message && <p className="mt-[0.3vw] line-clamp-3 text-[1.35vw] leading-snug text-[#3a3a3c] [overflow-wrap:anywhere]">{data.message}</p>}
+      </div>
+    </div>
+  );
+}
+
+/** 6 · โดกูประกาศ: แถบล่างเลื่อนขึ้น โดกูอ้าปากพูด ข้อความค่อย ๆ พิมพ์ขึ้น */
+export function AlertAnnounce({ data, leaving }: Props) {
+  const msg = data.message || "ขอบคุณที่สนับสนุนครับ";
+  return (
+    <div
+      className={`fixed inset-x-0 bottom-0 flex items-end gap-[1vw] bg-[linear-gradient(180deg,transparent,rgba(0,0,0,.65)_45%)] px-[2vw] pb-[1.2vw] pt-[3vw] text-white ${leaving ? "announce-out" : "announce-in"}`}
+    >
+      <Mascot className="mb-[-1.2vw] block w-[9vw] shrink-0" mouth="talk" />
+      <div className="min-w-0 flex-1 pb-[0.5vw]">
+        <span className="inline-flex items-center gap-[0.5vw] rounded-[0.4vw] bg-[#e10600] px-[0.7vw] py-[0.2vw] text-[1vw] font-bold tracking-[0.04em]">
+          📢 โดกูประกาศ
+        </span>
+        <p className="mt-[0.5vw] truncate text-[2.2vw] font-bold leading-tight [text-shadow:0_0.15vw_0.5vw_rgba(0,0,0,.7)]">
+          {data.donorName} โดเนท <span className="amount text-[#ff5a4f]">฿{baht(data.amount)}</span>
+        </p>
+        <p className="announce-type mt-[0.2vw] truncate text-[1.6vw] text-[#e5e5ea]">“{msg}”</p>
       </div>
     </div>
   );

@@ -4,11 +4,12 @@ import { NavBar } from "@/components/NavBar";
 import { currentUser, homeFor, safeNext } from "@/lib/auth";
 import { LoginForm } from "./LoginForm";
 import { registrationOpen } from "@/lib/users";
+import { PageBackdrop } from "@/components/PageBackdrop";
 
 export const metadata: Metadata = { title: "เข้าสู่ระบบ" };
 export const dynamic = "force-dynamic";
 
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string; expired?: string }> }) {
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string; expired?: string; loggedout?: string }> }) {
   const sp = await searchParams;
   const next = safeNext(sp.next);
   const user = await currentUser().catch(() => null);
@@ -16,10 +17,14 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   return (
     <>
       <NavBar />
-      <main className="min-h-dvh bg-paper">
+      <main className="relative isolate min-h-dvh overflow-hidden bg-paper">
+        <PageBackdrop />
         <div className="mx-auto max-w-[400px] px-4 py-24 text-center">
           <h1 className="display text-[40px]">เข้าสู่ระบบ</h1>
           <p className="mt-3 text-ink-2 [text-wrap:balance]">สำหรับสตรีมเมอร์ ใช้จัดการหน้าโดเนทและวิดเจ็ต OBS</p>
+          {sp.loggedout ? (
+            <p role="status" className="mt-6 rounded-2xl bg-fill px-4 py-3 text-[14px] text-ink-2">ออกจากระบบเรียบร้อยแล้ว</p>
+          ) : null}
           {sp.expired ? (
             <p role="status" className="mt-6 rounded-2xl bg-fill px-4 py-3 text-[14px] text-ink-2">ครบ 1 วันแล้ว ระบบออกจากระบบให้อัตโนมัติ กรุณาเข้าสู่ระบบอีกครั้ง</p>
           ) : null}

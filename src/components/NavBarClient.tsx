@@ -8,6 +8,7 @@ import { ThemeToggle } from "./ThemeToggle";
 import { UserMenu, type NavUser } from "./UserMenu";
 import { LogoMark } from "./Logo";
 import { SessionTimeout } from "./SessionTimeout";
+import { LogoutButton } from "./LogoutButton";
 
 const links = [
   { href: "/", label: "หน้าแรก" },
@@ -126,11 +127,9 @@ export function NavBarClient({ user, expiresAt }: { user: NavUser | null; expire
                 เข้าสู่ระบบเป็น <span className="font-semibold text-ink">{user.displayName}</span>
                 {user.role === "admin" && " (ผู้ดูแล)"}
               </p>
-              <form action="/api/auth/logout" method="post" className="mt-3">
-                <button type="submit" className="text-[17px] font-medium text-red">
-                  ออกจากระบบ
-                </button>
-              </form>
+              <div className="mt-3">
+                <LogoutButton className="text-[17px] font-medium text-red" />
+              </div>
             </div>
           )}
         </div>

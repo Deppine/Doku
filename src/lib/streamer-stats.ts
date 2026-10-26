@@ -68,21 +68,32 @@ export async function markAlertTested(userId: number) {
   await exec("UPDATE users SET alert_tested_at = NOW() WHERE id = ?", [userId]).catch(() => {});
 }
 
-export type Goal = { title: string; target: number; raised: number; startsAt: number };
+export const GOAL_STYLES = ["neon", "tube", "ring", "edge", "basic"] as const;
+export type GoalStyle = (typeof GOAL_STYLES)[number];
+export const isGoalStyle = (v: unknown): v is GoalStyle => typeof v === "string" && (GOAL_STYLES as readonly string[]).includes(v);
+
+export type Goal = { title: string; target: number; raised: number; startsAt: number; style: GoalStyle };
 
 /** เป้าหมายโดเนท (null = ยังไม่ได้ตั้ง หรือยังไม่ได้ migrate) */
 export async function getGoal(userId: number): Promise<Goal | null> {
   try {
-    const [g] = await query<RowDataPacket & { title: string; target_amount: number; starts: number }>(
-      "SELECT title, target_amount, UNIX_TIMESTAMP(starts_at) AS starts FROM donation_goals WHERE user_id = ?",
-      [userId]
-    );
+    // ยังไม่ได้รัน 009 (ไม่มีคอลัมน์ style) ก็ยังใช้ได้ ถือเป็นแบบนีออน
+    const sql = (withStyle: boolean) =>
+      `SELECT title, target_amount, UNIX_TIMESTAMP(starts_at) AS starts${withStyle ? ", style" : ""} FROM donation_goals WHERE user_id = ?`;
+    type Row = RowDataPacket & { title: string; target_amount: number; starts: number; style?: string };
+    const [g] = await query<Row>(sql(true), [userId]).catch(() => query<Row>(sql(false), [userId]));
     if (!g) return null;
     const [r] = await query<RowDataPacket & { raised: number | null }>(
       `SELECT SUM(${AMT}) AS raised FROM donations WHERE recipient_user_id = ? AND status = 'verified' AND UNIX_TIMESTAMP(verified_at) >= ?`,
       [userId, g.starts]
     );
-    return { title: g.title, target: Number(g.target_amount), raised: Number(r?.raised ?? 0), startsAt: Number(g.starts) * 1000 };
+    return {
+      title: g.title,
+      target: Number(g.target_amount),
+      raised: Number(r?.raised ?? 0),
+      startsAt: Number(g.starts) * 1000,
+      style: isGoalStyle(g.style) ? g.style : "neon",
+    };
   } catch {
     return null;
   }
@@ -95,6 +106,12 @@ export async function saveGoal(userId: number, title: string, target: number, re
      ON DUPLICATE KEY UPDATE title = VALUES(title), target_amount = VALUES(target_amount)${reset ? ", starts_at = CURRENT_TIMESTAMP" : ""}`,
     [userId, title, target]
   );
+}
+
+/** เปลี่ยนหน้าตาหลอดเป้าหมาย (false = ยังไม่ได้ migrate 009) */
+export async function setGoalStyle(userId: number, style: GoalStyle) {
+  const r = await exec("UPDATE donation_goals SET style = ? WHERE user_id = ?", [style, userId]).catch(() => null);
+  return r !== null;
 }
 
 export async function deleteGoal(userId: number) {

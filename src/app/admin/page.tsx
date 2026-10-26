@@ -9,6 +9,7 @@ import { PROVIDER_LABEL, ttsProvider } from "@/lib/tts-server";
 import { baht } from "@/lib/format";
 import { DonationFeed } from "./AdminDonations";
 import { AccountsTable, ReviewQueue } from "./DashboardParts";
+import { PageBackdrop } from "@/components/PageBackdrop";
 
 export const metadata: Metadata = { title: "ผู้ดูแลระบบ" };
 export const dynamic = "force-dynamic";
@@ -43,7 +44,8 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   return (
     <>
       <NavBar />
-      <main className="min-h-dvh bg-paper">
+      <main className="relative isolate min-h-dvh overflow-hidden bg-paper">
+        <PageBackdrop />
         <div className="mx-auto max-w-[1280px] px-4 pb-24 pt-8 sm:px-6 sm:pt-10">
           <div id="overview" className="flex scroll-mt-20 flex-wrap items-end gap-4">
             <div className="min-w-0 flex-[1_1_320px]">
