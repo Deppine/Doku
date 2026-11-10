@@ -12,7 +12,8 @@ import { CopyField, RegenerateWidgetButton } from "./DashboardClient";
 import { QrSection } from "./QrSection";
 import { SettingsForm } from "./SettingsForm";
 import { SoundSettings } from "./SoundSettings";
-import { AlertStylePicker, CopyButton, DonationList, GoalCard, SettingsTabs, SetupChecklist, TestButton } from "./StreamerParts";
+import { AlertStylePicker, CopyButton, DonationList, GoalCard, SetupChecklist, TestButton } from "./StreamerParts";
+import { DashboardShell, SettingBlock, type DashSection } from "./DashboardShell";
 import { getSoundSettings, toClient } from "@/lib/alert-settings";
 import { maskPromptPay } from "@/lib/promptpay";
 import { PageBackdrop } from "@/components/PageBackdrop";
@@ -46,23 +47,18 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   const pending = user.status === "pending";
 
   const steps = [
-    { label: "ตั้งเลขพร้อมเพย์", done: Boolean(streamer.promptpayId), href: "#page" },
-    { label: "ใส่วิดเจ็ตใน OBS", done: ov.widgetEverConnected, href: "#obs" },
-    { label: "ทดสอบแจ้งเตือน", done: ov.alertTested, href: "#obs" },
-    { label: "ได้รับโดเนทแรก", done: ov.allCount > 0, href: "#obs" },
+    { label: "ตั้งเลขพร้อมเพย์", done: Boolean(streamer.promptpayId), href: "#receive" },
+    { label: "ใส่วิดเจ็ตใน OBS", done: ov.widgetEverConnected, href: "#alert" },
+    { label: "ทดสอบแจ้งเตือน", done: ov.alertTested, href: "#alert" },
+    { label: "ได้รับโดเนทแรก", done: ov.allCount > 0, href: "#qr" },
   ];
   const up = (ov.todayDelta ?? 0) >= 0;
 
-  return (
+  const overview = (
     <>
-      <NavBar />
-      <main className="relative isolate min-h-dvh overflow-hidden bg-paper">
-        <PageBackdrop />
-        <div className="mx-auto max-w-[1180px] px-4 pb-24 pt-8 sm:px-6 sm:pt-10">
           <div className="flex flex-wrap items-start gap-x-4 gap-y-3">
             <div className="min-w-0 flex-[1_1_360px]">
-              <h1 className="display text-[30px] sm:text-[34px]">สวัสดี {streamer.displayName}</h1>
-              <div className="mt-1.5 flex flex-wrap items-center gap-2.5 text-[14px] text-ink-2">
+              <div className="flex flex-wrap items-center gap-2.5 text-[14px] text-ink-2">
                 <span
                   className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-semibold ${ov.online ? "bg-ok/15 text-ok" : "bg-fill text-ink-2"}`}
                 >
@@ -92,7 +88,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
             <div className="mt-6 rounded-[20px] border border-red/30 bg-red-tint px-5 py-4">
               <p className="font-semibold text-ink">ยินดีต้อนรับ! เหลืออีกขั้นเดียว</p>
               <p className="mt-1 text-[15px] text-ink-2">
-                ใส่เบอร์หรือเลขพร้อมเพย์ในแท็บ <a href="#page" className="link">หน้าโดเนท</a> ด้านล่าง แล้วหน้าโดเนท /{streamer.username} จะเปิดใช้ได้ทันที
+                ใส่เบอร์หรือเลขพร้อมเพย์ในเมนู <a href="#receive" className="link">ช่องทางรับเงิน</a> แล้วหน้าโดเนท /{streamer.username} จะเปิดใช้ได้ทันที
               </p>
             </div>
           )}
@@ -129,7 +125,6 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
             </section>
 
             <div className="flex min-w-0 flex-[1_1_320px] flex-col gap-4">
-              <GoalCard goal={goal} widgetUrl={goalUrl} />
               <section aria-labelledby="fans-h" className={card}>
                 <h2 id="fans-h" className="text-[19px] font-semibold">
                   ผู้สนับสนุนอันดับต้น · 30 วัน
@@ -152,76 +147,143 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
             </div>
           </div>
 
-          <SettingsTabs
-            tabs={[
-              {
-                id: "obs",
-                label: "OBS และลิงก์",
-                content: (
-                  <div className="flex flex-wrap gap-4">
-                    <div className={`${card} min-w-0 flex-[999_1_520px]`}>
-                      <h3 className="text-[17px] font-semibold">วิดเจ็ตแจ้งเตือน</h3>
-                      <p className="mt-1 text-[14px] text-ink-2">
-                        ใน OBS / Streamlabs / TikTok Live Studio เพิ่ม Browser Source ขนาด 1920 × 1080 แล้ววางลิงก์นี้ อย่าแชร์ลิงก์ให้คนอื่น
-                      </p>
-                      <div className="mt-3 [&>div]:bg-paper">
-                        <CopyField label="ลิงก์วิดเจ็ต (เก็บเป็นความลับ)" value={widgetUrl} secret />
-                      </div>
-                      <div className="mt-5">
-                        <AlertStylePicker initial={sound.alertStyle} />
-                      </div>
-                      <p className="mt-3 text-[12px] text-ink-3">ปิดเสียงอ่านข้อความเฉพาะจอนี้ได้ด้วยการต่อท้ายลิงก์ &amp;tts=0</p>
-                      <RegenerateWidgetButton />
-                    </div>
-                    <div className={`${card} min-w-0 flex-[1_1_340px]`}>
-                      <h3 className="text-[17px] font-semibold">QR หน้าโดเนท</h3>
-                      {pending || !streamer.promptpayId ? (
-                        <p className="mt-3 text-[14px] text-ink-2">
-                          {pending ? "QR จะใช้ได้หลังผู้ดูแลอนุมัติบัญชี" : "ตั้งพร้อมเพย์ในแท็บหน้าโดเนทก่อน แล้ว QR จะพร้อมใช้"}
-                        </p>
-                      ) : (
-                        <QrSection username={streamer.username} pageUrl={pageUrl} cardUrl={`${base}/widget/qr/${streamer.username}`} compact />
-                      )}
-                    </div>
-                  </div>
-                ),
-              },
-              {
-                id: "sound",
-                label: "เสียงแจ้งเตือน",
-                content: (
-                  <div className={card}>
-                    <p className="text-[15px] text-ink-2">บันทึกแล้ววิดเจ็ตใน OBS ใช้เสียงใหม่ทันที ไม่ต้องรีเฟรช</p>
-                    <SoundSettings initial={toClient(sound, null)} hasFile={Boolean(sound.soundFile)} serverVoice={ttsLabel} />
-                  </div>
-                ),
-              },
-              {
-                id: "page",
-                label: "หน้าโดเนท",
-                content: (
-                  <div className={card}>
-                    <p className="text-[15px] text-ink-2">
-                      {streamer.promptpayId
-                        ? `ตอนนี้รับเงินเข้าพร้อมเพย์ ${maskPromptPay(streamer.promptpayId)} (${streamer.promptpayName})`
-                        : "ยังไม่ได้ตั้งบัญชีรับเงิน หน้าโดเนทจะยังใช้ไม่ได้จนกว่าจะบันทึกพร้อมเพย์"}
-                    </p>
-                    <SettingsForm
-                      initial={{
-                        displayName: streamer.displayName,
-                        bio: streamer.bio,
-                        promptpayId: streamer.promptpayId ?? "",
-                        promptpayName: streamer.promptpayName ?? "",
-                        minAmount: streamer.minAmount,
-                        presets: streamer.presets,
-                        allowCustomAmount: streamer.allowCustomAmount !== false,
-                      }}
-                    />
-                  </div>
-                ),
-              },
-            ]}
-          />
+    </>
+  );
+
+  const sections: DashSection[] = [
+    {
+      id: "overview",
+      group: "ทั่วไป",
+      label: "ภาพรวม",
+      icon: "home",
+      title: `สวัสดี ${streamer.displayName}`,
+      content: overview,
+    },
+    {
+      id: "receive",
+      group: "การรับเงิน",
+      label: "ช่องทางรับเงิน",
+      icon: "wallet",
+      title: "ช่องทางรับเงิน",
+      desc: "บัญชีพร้อมเพย์ที่รับเงิน และหน้าตาหน้าโดเนทที่ผู้ชมเห็น",
+      badge: streamer.promptpayId ? undefined : "!",
+      content: (
+        <div className="space-y-4">
+          <SettingBlock
+            icon="wallet"
+            title="พร้อมเพย์และหน้าโดเนท"
+            desc={
+              <>
+                <p>
+                  {streamer.promptpayId
+                    ? `ตอนนี้รับเงินเข้าพร้อมเพย์ ${maskPromptPay(streamer.promptpayId)} (${streamer.promptpayName})`
+                    : "ยังไม่ได้ตั้งบัญชีรับเงิน หน้าโดเนทจะยังใช้ไม่ได้จนกว่าจะบันทึกพร้อมเพย์"}
+                </p>
+                <p className="mt-2">เงินเข้าบัญชีคุณโดยตรง ระบบตรวจสลิปของผู้ชมแล้วขึ้นจอให้อัตโนมัติ รองรับสลิปธนาคารและ TrueMoney</p>
+              </>
+            }
+          >
+            <SettingsForm
+              initial={{
+                displayName: streamer.displayName,
+                bio: streamer.bio,
+                promptpayId: streamer.promptpayId ?? "",
+                promptpayName: streamer.promptpayName ?? "",
+                minAmount: streamer.minAmount,
+                presets: streamer.presets,
+                allowCustomAmount: streamer.allowCustomAmount !== false,
+              }}
+            />
+          </SettingBlock>
+        </div>
+      ),
+    },
+    {
+      id: "qr",
+      group: "การรับเงิน",
+      label: "QR และลิงก์โดเนท",
+      icon: "qr",
+      title: "QR และลิงก์โดเนท",
+      desc: "แชร์ลิงก์ หรือใช้ QR บนจอไลฟ์ให้ผู้ชมสแกนมาโดเนท",
+      content: (
+        <div className="space-y-4">
+          <SettingBlock icon="page" title="ลิงก์หน้าโดเนท" desc="ใส่ไว้ในคำอธิบายไลฟ์ แชต หรือโซเชียล">
+            <div className="[&>div]:bg-paper">
+              <CopyField label="ลิงก์หน้าโดเนท" value={pageUrl} />
+            </div>
+          </SettingBlock>
+          <SettingBlock icon="qr" title="QR หน้าโดเนท" desc="ดาวน์โหลดรูป หรือใส่เป็นวิดเจ็ตบนจอไลฟ์">
+            {pending || !streamer.promptpayId ? (
+              <p className="text-[14px] text-ink-2">
+                {pending ? "QR จะใช้ได้หลังผู้ดูแลอนุมัติบัญชี" : "ตั้งพร้อมเพย์ในเมนูช่องทางรับเงินก่อน แล้ว QR จะพร้อมใช้"}
+              </p>
+            ) : (
+              <QrSection username={streamer.username} pageUrl={pageUrl} cardUrl={`${base}/widget/qr/${streamer.username}`} compact />
+            )}
+          </SettingBlock>
+        </div>
+      ),
+    },
+    {
+      id: "alert",
+      group: "วิดเจ็ต OBS",
+      label: "แจ้งเตือนบนจอ",
+      icon: "bell",
+      title: "แจ้งเตือนบนจอ",
+      desc: "วิดเจ็ตที่เด้งขึ้นบนไลฟ์ทุกครั้งที่มีคนโดเนท",
+      content: (
+        <div className="space-y-4">
+          <SettingBlock
+            icon="bell"
+            title="ลิงก์วิดเจ็ตแจ้งเตือน"
+            desc="ใน OBS / Streamlabs / TikTok Live Studio เพิ่ม Browser Source ขนาด 1920 × 1080 แล้ววางลิงก์นี้ อย่าแชร์ลิงก์ให้คนอื่น"
+          >
+            <div className="[&>div]:bg-paper">
+              <CopyField label="ลิงก์วิดเจ็ต (เก็บเป็นความลับ)" value={widgetUrl} secret />
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <TestButton />
+            </div>
+            <p className="mt-3 text-[12px] text-ink-3">ปิดเสียงอ่านข้อความเฉพาะจอนี้ได้ด้วยการต่อท้ายลิงก์ &amp;tts=0</p>
+            <RegenerateWidgetButton />
+          </SettingBlock>
+          <SettingBlock icon="page" title="รูปแบบแจ้งเตือน" desc="เลือกแล้วบันทึกทันที วิดเจ็ตใน OBS เปลี่ยนตามโดยไม่ต้องรีเฟรช">
+            <AlertStylePicker initial={sound.alertStyle} />
+          </SettingBlock>
+        </div>
+      ),
+    },
+    {
+      id: "sound",
+      group: "วิดเจ็ต OBS",
+      label: "เสียงแจ้งเตือน",
+      icon: "sound",
+      title: "เสียงแจ้งเตือน",
+      desc: "บันทึกแล้ววิดเจ็ตใน OBS ใช้เสียงใหม่ทันที ไม่ต้องรีเฟรช",
+      content: (
+        <div className="rounded-[22px] bg-surface p-5 sm:p-6">
+          <SoundSettings initial={toClient(sound, null)} hasFile={Boolean(sound.soundFile)} serverVoice={ttsLabel} />
+        </div>
+      ),
+    },
+    {
+      id: "goal",
+      group: "วิดเจ็ต OBS",
+      label: "เป้าหมายโดเนท",
+      icon: "goal",
+      title: "เป้าหมายโดเนท",
+      desc: "หลอดเก็บเงินบนจอไลฟ์ ให้ผู้ชมช่วยกันเติมให้เต็ม",
+      content: <GoalCard goal={goal} widgetUrl={goalUrl} />,
+    },
+  ];
+
+  return (
+    <>
+      <NavBar />
+      <main className="relative isolate min-h-dvh overflow-x-clip bg-paper">
+        <PageBackdrop />
+        <div className="mx-auto max-w-[1240px] px-4 pb-24 pt-6 sm:px-6 sm:pt-8">
+          <DashboardShell sections={sections} />
         </div>
       </main>
     </>

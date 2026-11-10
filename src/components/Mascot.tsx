@@ -2,8 +2,8 @@ import { useId } from "react";
 
 /**
  * มาสคอตของ Doku: "โดกู" ลำโพงจิ๋วสีแดง เสาอากาศไฟ LED
- * eyes: open = ตาโต · happy = ตายิ้ม
- * mouth: smile = ยิ้ม · talk = อ้าปากขยับ (ใช้ตอนอ่านข้อความ)
+ * eyes: open = ตาโต · happy = ตายิ้ม · star = ตาเป็นดาว (ตื่นเต้น)
+ * mouth: smile = ยิ้ม · talk = อ้าปากขยับ (ใช้ตอนอ่านข้อความ) · open = อ้าปากดีใจ
  * wave: โบกมือขวา
  */
 export function Mascot({
@@ -14,8 +14,8 @@ export function Mascot({
   title,
 }: {
   className?: string;
-  eyes?: "open" | "happy";
-  mouth?: "smile" | "talk";
+  eyes?: "open" | "happy" | "star";
+  mouth?: "smile" | "talk" | "open";
   wave?: boolean;
   title?: string;
 }) {
@@ -47,7 +47,21 @@ export function Mascot({
       )}
       <rect x="18" y="22" width="84" height="88" rx="30" fill={`url(#dk-${id})`} />
       <rect x="26" y="30" width="68" height="62" rx="24" fill="#ff5a4f" opacity=".35" />
-      {eyes === "happy" ? (
+      {eyes === "star" ? (
+        <>
+          {[45, 75].map((cx) => (
+            <path
+              key={cx}
+              transform={`translate(${cx} 56)`}
+              d="M0 -10 L3 -3 L10 -3 L4.5 1.5 L6.5 9 L0 4.5 L-6.5 9 L-4.5 1.5 L-10 -3 L-3 -3Z"
+              fill="#ffd60a"
+              stroke="#1d1d1f"
+              strokeWidth="1.5"
+              strokeLinejoin="round"
+            />
+          ))}
+        </>
+      ) : eyes === "happy" ? (
         <>
           <path d="M37 58 Q45 48 53 58" stroke="#1d1d1f" strokeWidth="4" fill="none" strokeLinecap="round" />
           <path d="M67 58 Q75 48 83 58" stroke="#1d1d1f" strokeWidth="4" fill="none" strokeLinecap="round" />
@@ -69,6 +83,11 @@ export function Mascot({
           <ellipse cx="60" cy="76" rx="7" ry="6" fill="#5a0000" />
           <ellipse cx="60" cy="79" rx="4" ry="2.4" fill="#ff7a7a" />
         </g>
+      ) : mouth === "open" ? (
+        <>
+          <path d="M49 72 Q60 88 71 72 Z" fill="#5a0000" />
+          <ellipse cx="60" cy="80" rx="5" ry="2.6" fill="#ff7a7a" />
+        </>
       ) : (
         <path d="M50 74 Q60 82 70 74" stroke="#5a0000" strokeWidth="3.5" fill="none" strokeLinecap="round" />
       )}

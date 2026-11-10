@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { MAX_DONATION, MAX_MESSAGE, baht } from "@/lib/format";
 import type { SlipMode } from "@/lib/slip";
+import { Mascot } from "@/components/Mascot";
 
 type Props = {
   username: string;
@@ -37,8 +38,12 @@ export function DonateForm({ username, minAmount, presets, allowCustom, receiver
   const value = custom ? Number(custom) : amount;
   const valid = Number.isFinite(value) && value >= minAmount && value <= MAX_DONATION;
   const shown = valid || !custom ? baht(value || 0) : custom;
-  // ตัวเลขยาวขึ้น → ตัวอักษรเล็กลง ไม่ให้ล้นจอ
-  const amountSize = shown.length > 8 ? "text-[clamp(48px,15vw,104px)]" : shown.length > 6 ? "text-[clamp(60px,18vw,112px)]" : "text-[clamp(72px,22vw,128px)]";
+  // ตัวเลขยาวขึ้น → ตัวอักษรเล็กลง ไม่ให้ล้นป้าย
+  const amountSize = shown.length > 8 ? "text-[clamp(30px,9vw,46px)]" : shown.length > 6 ? "text-[clamp(36px,11vw,58px)]" : "text-[clamp(44px,13vw,76px)]";
+  // ท่าทางโดกูตามยอด
+  const n = valid ? value : 0;
+  const mood = n >= 300 ? "wow" : n >= 100 ? "happy" : "calm";
+  const say = mood === "wow" ? "ว้าว! ใจดีสุด ๆ ไปเลย" : mood === "happy" ? "เย้! ขอบคุณมากนะ" : "ทุกบาทมีความหมาย ขอบคุณนะ";
 
   async function createPayment(e: React.FormEvent) {
     e.preventDefault();
@@ -108,10 +113,29 @@ export function DonateForm({ username, minAmount, presets, allowCustom, receiver
   }
 
   return (
-    <form onSubmit={createPayment} className="mt-10" noValidate>
-      {/* ยอดเงินตัวใหญ่ — จุดเด่นของหน้า */}
-      <div className="text-center" aria-live="polite">
-        <p className={`amount ${amountSize} text-red`}>฿{shown}</p>
+    <form onSubmit={createPayment} className="mt-8" noValidate>
+      {/* โดกูชูป้ายยอดเงิน — จุดเด่นของหน้า: ท่าทางเปลี่ยนตามยอด */}
+      <div className="relative flex items-center" aria-live="polite">
+        <div className="donate-bob relative z-10 w-[104px] shrink-0 sm:w-[140px]">
+          <Mascot
+            className="w-full"
+            eyes={mood === "wow" ? "star" : mood === "happy" ? "happy" : "open"}
+            mouth={mood === "wow" ? "open" : "smile"}
+            wave={mood !== "calm"}
+          />
+        </div>
+        <div className="donate-hold relative -ml-2 min-w-0 flex-1 rounded-[22px] bg-white px-5 pb-3 pt-3 text-[#1d1d1f] shadow-[0_18px_40px_-16px_rgb(225_6_0/0.6),inset_0_-5px_0_#e5e5ea]">
+          <span aria-hidden className="absolute -left-2 top-1/2 size-5 -translate-y-1/2 rotate-45 rounded-[3px] bg-white" />
+          <p key={mood} className="donate-say relative text-[13px] font-bold text-[#e10600]">{say}</p>
+          <p className={`amount relative ${amountSize} truncate leading-[1.05] text-[#e10600]`}>฿{shown}</p>
+        </div>
+        {mood === "wow" && (
+          <span aria-hidden>
+            <i className="donate-spark left-3 top-0" />
+            <i className="donate-spark left-[46%] -top-2 [animation-delay:0.4s]" />
+            <i className="donate-spark -top-1 right-2 [animation-delay:0.8s]" />
+          </span>
+        )}
       </div>
 
       <fieldset className="mt-6">

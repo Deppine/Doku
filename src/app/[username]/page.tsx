@@ -26,16 +26,18 @@ export default async function DonatePage({ params }: Props) {
       <NavBar />
       <main className="relative isolate min-h-dvh overflow-hidden bg-paper">
         <PageBackdrop />
-        <div className="mx-auto max-w-[560px] px-4 pb-20 pt-12">
-          <header className="text-center">
+        <div className="mx-auto max-w-[560px] px-4 pb-20 pt-10">
+          <header className="flex items-center gap-4">
             <div
               aria-hidden
-              className="mx-auto grid size-24 place-items-center rounded-full bg-red text-[40px] font-bold text-white shadow-[0_12px_30px_-10px_rgb(225_6_0/0.6)]"
+              className="grid size-14 shrink-0 place-items-center rounded-full bg-red text-[24px] font-bold text-white shadow-[0_0_30px_rgb(225_6_0/0.45)]"
             >
               {streamer.displayName.slice(0, 1).toUpperCase()}
             </div>
-            <h1 className="display mt-5 text-[40px]">{streamer.displayName}</h1>
-            <p className="mx-auto mt-2 max-w-[38ch] text-ink-2">{streamer.bio}</p>
+            <div className="min-w-0">
+              <h1 className="display truncate text-[26px] leading-tight">{streamer.displayName}</h1>
+              {streamer.bio && <p className="mt-0.5 line-clamp-2 text-[15px] text-ink-2">{streamer.bio}</p>}
+            </div>
           </header>
 
           {streamer.promptpayId ? (

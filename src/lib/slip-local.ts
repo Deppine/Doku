@@ -94,21 +94,50 @@ export function findAmount(text: string): number | null {
   return positive.length ? Math.max(...positive) : null;
 }
 
-/** หาเลขบัญชี/พร้อมเพย์ที่ถูกปิดบางส่วน เช่น xxx-xxx-7780, xxx-x-x8012-x */
+/**
+ * หาเลขบัญชี/พร้อมเพย์ที่ถูกปิดบางส่วน เช่น xxx-xxx-7780, xxx-x-x8012-x,
+ * 06*-***-7780 (TrueMoney ใช้ *), XXX XXX 7780 (กรุงไทยคั่นด้วยเว้นวรรค)
+ */
 export function findMaskedAccounts(text: string): string[] {
-  // OCR มักอ่านขีดเป็น "=" หรือ "=-" จึงยอมให้ตัวคั่นยาว 1–2 ตัว
-  return [...text.matchAll(/[xX×\d]{3}[-=–]{1,2}[xX×\d]{1,3}[-=–]{1,2}[xX×\d]{1,5}(?:[-=–]{1,2}[xX×\d])?/g)]
-    .map((m) => m[0].replace(/[-=–]+/g, "-").replace(/×/g, "x"))
+  // OCR มักอ่านขีดเป็น "=" หรือ "=-" หรือ "." จึงยอมให้ตัวคั่นยาว 1–2 ตัว
+  // หลักท้ายเดี่ยว (เช่น -x, -2) ต้องจบคำจริง ไม่งั้นจะไปกินเลขยอดเงินที่อยู่ถัดไป ("7780 20.00")
+  return [...text.matchAll(/[xX×*\d]{3}[-=–. ]{1,2}[xX×*\d]{1,3}[-=–. ]{1,2}[xX×*\d]{1,5}(?:[-=–. ]{1,2}[xX×*\d](?![\w.,]))?/g)]
+    .map((m) => m[0].trim().replace(/[-=–. ]+/g, "-").replace(/[×*]/g, "x"))
     .filter((s) => /x/i.test(s) && /\d/.test(s));
 }
 
-/** ถอด QR: ลองจากรูปย่อก่อน (เร็ว) ถ้าไม่เจอค่อยใช้รูปเต็ม */
+/**
+ * ถอด QR: ลองจากรูปย่อก่อน (เร็ว) ถ้าไม่เจอค่อยใช้รูปเต็ม
+ * สลิปธีมพิเศษ (เช่น กรุงไทยลายเทศกาล) QR ติดพื้นหลังสี/ลวดลาย → รอบสุดท้ายเก็บเฉพาะพิกเซลที่ดำจริง
+ * (ทุกช่องสีต่ำ) ที่เหลือเป็นขาว ลวดลายสีจะหายไป เหลือแต่ QR สีดำ
+ */
 async function readQr(buf: Buffer) {
   for (const width of [1000, 0]) {
     let pipe = sharp(buf).rotate();
     if (width) pipe = pipe.resize({ width, withoutEnlargement: true });
     const { data, info } = await pipe.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
     const code = jsQR(new Uint8ClampedArray(data.buffer, data.byteOffset, data.length), info.width, info.height);
+    if (code) return parseSlipQr(code.data);
+  }
+
+  const { data, info } = await sharp(buf)
+    .rotate()
+    .resize({ width: 1400, withoutEnlargement: true })
+    .removeAlpha()
+    .toColourspace("srgb")
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const n = info.width * info.height;
+  const c = info.channels;
+  for (const limit of [80, 50]) {
+    const px = new Uint8ClampedArray(n * 4);
+    for (let i = 0; i < n; i++) {
+      const dark = data[i * c] < limit && data[i * c + 1] < limit && data[i * c + 2] < limit;
+      const v = dark ? 0 : 255;
+      px[i * 4] = px[i * 4 + 1] = px[i * 4 + 2] = v;
+      px[i * 4 + 3] = 255;
+    }
+    const code = jsQR(px, info.width, info.height, { inversionAttempts: "dontInvert" });
     if (code) return parseSlipQr(code.data);
   }
   return null;
@@ -143,7 +172,23 @@ export async function verifyLocal(file: File, receiverId: string): Promise<SlipR
     return { ok: false, reason: "ระบบอ่านสลิปขัดข้องชั่วคราว ลองกดส่งสลิปอีกครั้งในไม่กี่วินาที" };
   }
 
-  const amount = findAmount(text);
+  let amount = findAmount(text);
+  // สลิป TrueMoney: ยอดตัวใหญ่ด้านบน OCR ทั้งใบมักอ่านข้ามไป → อ่านเฉพาะส่วนบนของสลิปอีกรอบ
+  if (amount === null) {
+    try {
+      const meta = await sharp(buf).rotate().metadata();
+      const h = meta.autoOrient?.height ?? meta.height ?? 0;
+      const w = meta.autoOrient?.width ?? meta.width ?? 0;
+      if (h && w) {
+        const top = await sharp(buf).rotate().extract({ left: 0, top: 0, width: w, height: Math.round(h * 0.3) }).grayscale().resize({ width: 1000 }).toBuffer();
+        const worker = await withTimeout(workerReady, 20_000, "init");
+        const { data } = await withTimeout(worker.recognize(top), 15_000, "recognize-top");
+        amount = findAmount(data.text);
+      }
+    } catch (e) {
+      console.error("[slip] OCR top", (e as Error).message);
+    }
+  }
   if (amount === null) return { ok: false, reason: "อ่านยอดเงินบนสลิปไม่ได้ ลองแนบรูปที่ชัดกว่านี้" };
 
   // เลือกบัญชีที่ตรงกับผู้รับ ถ้าไม่มีให้ส่งตัวสุดท้าย (ส่วนใหญ่ผู้รับอยู่ใต้ผู้โอน) ไปให้กฎตรวจปฏิเสธ

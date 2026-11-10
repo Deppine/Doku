@@ -133,7 +133,6 @@ export function DonationList({ items }: { items: FeedItem[] }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<{ ref: string; text: string } | null>(null);
-  const [limit, setLimit] = useState(8);
 
   useEffect(() => {
     const t = setInterval(() => router.refresh(), 30_000);
@@ -159,8 +158,9 @@ export function DonationList({ items }: { items: FeedItem[] }) {
   }
   return (
     <>
-      <ul className="mt-2">
-        {items.slice(0, limit).map((d) => (
+      {/* กล่องสูงคงที่ (~6 รายการ) เลื่อนดูรายการที่เหลือในกล่อง ไม่ดันหน้ายาวลงไป */}
+      <ul tabIndex={0} aria-label="รายการโดเนทล่าสุด" className="mt-2 max-h-[440px] overflow-y-auto overscroll-contain pr-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-red/40 rounded-xl">
+        {items.map((d) => (
           <li key={d.ref} className="flex items-start gap-3.5 border-t border-line py-3.5 first:border-t-0">
             <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-fill font-semibold">
               {d.donorName.slice(0, 1).toUpperCase()}
@@ -169,7 +169,7 @@ export function DonationList({ items }: { items: FeedItem[] }) {
               <p className="truncate">
                 <b>{d.donorName}</b> <span className="text-[12px] text-ink-3">· {ago(d.createdAt)}</span>
               </p>
-              {d.message && <p className="mt-0.5 break-words text-[14px] text-ink-2">{d.message}</p>}
+              {d.message && <p className="mt-0.5 line-clamp-2 break-words text-[14px] text-ink-2" title={d.message}>{d.message}</p>}
             </div>
             <div className="flex shrink-0 flex-col items-end gap-1.5">
               <span className="amount text-[18px] text-red tabular-nums">฿{baht(d.amount)}</span>
@@ -187,11 +187,7 @@ export function DonationList({ items }: { items: FeedItem[] }) {
           </li>
         ))}
       </ul>
-      {items.length > limit && (
-        <button type="button" onClick={() => setLimit((n) => n + 10)} className="mt-2 text-[14px] font-semibold text-red">
-          ดูเพิ่ม ({items.length - limit} รายการ)
-        </button>
-      )}
+      {items.length > 6 && <p className="mt-2 text-[12px] text-ink-3">แสดง {items.length} รายการล่าสุด · เลื่อนในกล่องเพื่อดูเพิ่ม</p>}
     </>
   );
 }
