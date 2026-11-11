@@ -166,7 +166,7 @@ export function SettingBlock({
   );
 }
 
-export type IconName = "home" | "wallet" | "page" | "bell" | "sound" | "goal" | "qr" | "logout" | "list";
+export type IconName = "home" | "wallet" | "page" | "bell" | "sound" | "goal" | "qr" | "logout" | "list" | "image";
 
 const PATHS: Record<IconName, string> = {
   home: "M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z",
@@ -178,6 +178,7 @@ const PATHS: Record<IconName, string> = {
   qr: "M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 18h2v2h-2zM14 18h2M18 14h2",
   logout: "M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 17l-5-5 5-5M5 12h11",
   list: "M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01",
+  image: "M4 5h16v14H4zM4 16l5-5 4 4 2-2 5 5M15 9.5h.01",
 };
 
 export function Icon({ name, size = 18 }: { name: IconName; size?: number }) {

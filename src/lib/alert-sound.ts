@@ -1,3 +1,4 @@
+import type { StickerId } from "./stickers";
 import type { AlertStyle } from "./alert-style";
 /**
  * เสียงแจ้งเตือน (ใช้ฝั่งเบราว์เซอร์: widget OBS + ปุ่มฟังตัวอย่างในแดชบอร์ด)
@@ -22,7 +23,18 @@ export type AlertSoundSettings = {
   alertStyle: AlertStyle;
   /** ลิงก์ขอไฟล์เสียงอ่านจากเซิร์ฟเวอร์ (null = ใช้เสียงในเครื่อง) */
   ttsServerUrl: string | null;
+  /** รูป/GIF เหนือข้อความ (แบบตัวอักษรกลางจอ) · null = ไม่มีรูป */
+  alertImageUrl: string | null;
+  /** สติกเกอร์โดกูจากคลัง (มีค่า = ใช้แทนรูปที่อัปโหลด) · random = สุ่มท่าทุกครั้ง */
+  alertSticker: StickerId | "random" | null;
+  alertImageSize: AlertImageSize;
+  alertImageAnim: AlertImageAnim;
 };
+
+export const ALERT_IMAGE_SIZES = ["s", "m", "l"] as const;
+export type AlertImageSize = (typeof ALERT_IMAGE_SIZES)[number];
+export const ALERT_IMAGE_ANIMS = ["pop", "rise", "zoom"] as const;
+export type AlertImageAnim = (typeof ALERT_IMAGE_ANIMS)[number];
 
 export const DEFAULT_SOUND: AlertSoundSettings = {
   soundPreset: "chime",
@@ -36,6 +48,10 @@ export const DEFAULT_SOUND: AlertSoundSettings = {
   ttsEngine: "auto",
   alertStyle: "classic",
   ttsServerUrl: null,
+  alertImageUrl: null,
+  alertSticker: null,
+  alertImageSize: "m",
+  alertImageAnim: "pop",
 };
 
 export const PRESETS: { id: Exclude<SoundPreset, "custom">; label: string }[] = [

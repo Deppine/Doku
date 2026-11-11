@@ -2,9 +2,10 @@
  * การตั้งค่าเสียงแจ้งเตือน (ตาราง alert_settings) ฝั่งเซิร์ฟเวอร์
  */
 import { exec, query, type RowDataPacket } from "./db";
-import { DEFAULT_SOUND, PRESETS, type AlertSoundSettings, type SoundPreset } from "./alert-sound";
+import { ALERT_IMAGE_ANIMS, ALERT_IMAGE_SIZES, DEFAULT_SOUND, PRESETS, type AlertImageAnim, type AlertImageSize, type AlertSoundSettings, type SoundPreset } from "./alert-sound";
 import { ttsProvider } from "./tts-server";
 import { isAlertStyle } from "./alert-style";
+import { isStickerId, type StickerId } from "./stickers";
 
 type Row = RowDataPacket & {
   sound_preset: string;
@@ -17,11 +18,27 @@ type Row = RowDataPacket & {
   tts_voice?: string; // มีหลังรัน 005_tts_voice.sql
   tts_engine?: string;
   alert_style?: string; // มีหลังรัน 008
+  alert_image_path?: string | null; // มีหลังรัน 010
+  alert_image_size?: string;
+  alert_image_anim?: string;
+  alert_sticker?: string | null;
 };
 
-export type StoredSoundSettings = Omit<AlertSoundSettings, "soundUrl" | "ttsServerUrl"> & { soundFile: string | null };
+const asSticker = (v: unknown): StickerId | "random" | null => (v === "random" || isStickerId(v) ? v : null);
 
-const DEFAULT_STORED: StoredSoundSettings = (({ soundUrl: _u, ttsServerUrl: _t, ...rest }) => ({ ...rest, soundFile: null }))(DEFAULT_SOUND);
+const isSize = (v: unknown): v is AlertImageSize => (ALERT_IMAGE_SIZES as readonly unknown[]).includes(v);
+const isAnim = (v: unknown): v is AlertImageAnim => (ALERT_IMAGE_ANIMS as readonly unknown[]).includes(v);
+
+export type StoredSoundSettings = Omit<AlertSoundSettings, "soundUrl" | "ttsServerUrl" | "alertImageUrl"> & {
+  soundFile: string | null;
+  alertImage: string | null;
+};
+
+const DEFAULT_STORED: StoredSoundSettings = (({ soundUrl: _u, ttsServerUrl: _t, alertImageUrl: _i, ...rest }) => ({
+  ...rest,
+  soundFile: null,
+  alertImage: null,
+}))(DEFAULT_SOUND);
 
 const VALID: SoundPreset[] = [...PRESETS.map((p) => p.id), "custom"];
 
@@ -48,6 +65,10 @@ export async function getSoundSettings(userId: number): Promise<StoredSoundSetti
     ttsVoice: r.tts_voice === "male" ? "male" : "female",
     ttsEngine: r.tts_engine === "browser" ? "browser" : "auto",
     alertStyle: isAlertStyle(r.alert_style) ? r.alert_style : "classic",
+    alertImage: r.alert_image_path ?? null,
+    alertImageSize: isSize(r.alert_image_size) ? r.alert_image_size : "m",
+    alertImageAnim: isAnim(r.alert_image_anim) ? r.alert_image_anim : "pop",
+    alertSticker: asSticker(r.alert_sticker),
   };
 }
 
@@ -56,8 +77,15 @@ export async function getSoundSettings(userId: number): Promise<StoredSoundSetti
  * widgetToken: ส่งให้ widget ใน OBS · ไม่ส่ง = ใช้ในแดชบอร์ด (ขอเสียงผ่าน session ที่ล็อกอินอยู่)
  */
 export function toClient(s: StoredSoundSettings, soundUrl: string | null, widgetToken?: string): AlertSoundSettings {
-  const { soundFile, ...rest } = s;
+  const { soundFile, alertImage, ...rest } = s;
   const hasFile = Boolean(soundFile);
+  // ชื่อไฟล์อยู่ในลิงก์ (?v=) เปลี่ยนรูป = ลิงก์ใหม่ OBS จะโหลดรูปใหม่เอง
+  const v = alertImage ? encodeURIComponent(alertImage.split("/").pop() ?? "") : "";
+  const imageUrl = alertImage
+    ? widgetToken
+      ? `/api/widget/image?token=${encodeURIComponent(widgetToken)}&v=${v}`
+      : `/api/dashboard/alert-image?v=${v}`
+    : null;
   const server = ttsProvider()
     ? widgetToken
       ? `/api/widget/tts?token=${encodeURIComponent(widgetToken)}`
@@ -68,6 +96,7 @@ export function toClient(s: StoredSoundSettings, soundUrl: string | null, widget
     soundPreset: s.soundPreset === "custom" && !hasFile ? "chime" : s.soundPreset,
     soundUrl: hasFile ? soundUrl : null,
     ttsServerUrl: server,
+    alertImageUrl: imageUrl,
   };
 }
 
@@ -89,6 +118,11 @@ export function sanitize(input: Record<string, unknown>, cur: StoredSoundSetting
     ttsVoice: input.ttsVoice === "male" || input.ttsVoice === "female" ? input.ttsVoice : cur.ttsVoice,
     ttsEngine: input.ttsEngine === "browser" || input.ttsEngine === "auto" ? input.ttsEngine : cur.ttsEngine,
     alertStyle: isAlertStyle(input.alertStyle) ? input.alertStyle : cur.alertStyle,
+    alertImage: cur.alertImage,
+    alertImageSize: isSize(input.alertImageSize) ? input.alertImageSize : cur.alertImageSize,
+    alertImageAnim: isAnim(input.alertImageAnim) ? input.alertImageAnim : cur.alertImageAnim,
+    // ส่ง null มา = เลิกใช้สติกเกอร์ · ไม่ส่งมา = คงค่าเดิม
+    alertSticker: input.alertSticker === null ? null : input.alertSticker === undefined ? cur.alertSticker : (asSticker(input.alertSticker) ?? cur.alertSticker),
   };
 }
 
@@ -120,7 +154,13 @@ async function saveRow(userId: number, s: StoredSoundSettings) {
     ["tts_engine", s.ttsEngine],
   ];
   const style: [string, unknown][] = [["alert_style", s.alertStyle]]; // 008
-  const attempts = [[...base, ...tts, ...style], [...base, ...tts], base];
+  const image: [string, unknown][] = [
+    ["alert_image_path", s.alertImage],
+    ["alert_image_size", s.alertImageSize],
+    ["alert_image_anim", s.alertImageAnim],
+    ["alert_sticker", s.alertSticker],
+  ]; // 010
+  const attempts = [[...base, ...tts, ...style, ...image], [...base, ...tts, ...style], [...base, ...tts], base];
   for (let i = 0; i < attempts.length; i++) {
     const cols = attempts[i];
     try {

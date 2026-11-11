@@ -1,5 +1,44 @@
 import { baht } from "@/lib/format";
+import type { AlertImageAnim, AlertImageSize } from "@/lib/alert-sound";
+import type { StickerId } from "@/lib/stickers";
 import type { AlertData } from "./AlertCard";
+import { DoguSticker } from "./DoguSticker";
+
+/** รูปที่จะแสดง: สติกเกอร์โดกูจากคลัง (sticker) หรือรูปที่อัปโหลด (url) */
+export type AlertImage = { url: string | null; sticker: StickerId | null; size: AlertImageSize; anim: AlertImageAnim };
+
+/** รูปหรือสติกเกอร์ + ท่าเข้า · className กำหนดขนาด */
+export function AlertMedia({
+  image,
+  className,
+  shadow,
+  by = "height",
+}: {
+  image: AlertImage;
+  className: string;
+  shadow: string;
+  /** className กำหนดความสูง (height) หรือความกว้าง (width) */
+  by?: "height" | "width";
+}) {
+  if (image.sticker) {
+    return (
+      <span className={`alert-img-${image.anim} block ${className}`} style={{ filter: `drop-shadow(${shadow})` }}>
+        <DoguSticker id={image.sticker} className={by === "height" ? "mx-auto h-full w-auto max-w-none" : "h-auto w-full"} />
+      </span>
+    );
+  }
+  if (!image.url) return null;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- GIF ต้องเล่นตามไฟล์จริง ไม่ผ่านตัวย่อรูป
+    <img src={image.url} alt="" className={`alert-img-${image.anim} block object-contain ${className}`} style={{ filter: `drop-shadow(${shadow})` }} />
+  );
+}
+
+// ความสูงรูปตามขนาดที่เลือก (viewport = จอ OBS, container = กล่องตัวอย่าง 16:9 → 1vh ≈ 0.5625cqw)
+const IMG_H = {
+  viewport: { s: "h-[18vh]", m: "h-[28vh]", l: "h-[40vh]" },
+  container: { s: "h-[10cqw]", m: "h-[16cqw]", l: "h-[22cqw]" },
+} as const;
 
 /**
  * แจ้งเตือนแบบตัวอักษรกลางจอ (ไม่มีกรอบ)
@@ -19,10 +58,13 @@ export function AlertClassic({
   data,
   className = "",
   fit = "viewport",
+  image,
 }: {
   data: AlertData;
   className?: string;
   fit?: "viewport" | "container";
+  /** รูป/GIF เหนือข้อความ (ตั้งในแดชบอร์ด) */
+  image?: AlertImage | null;
 }) {
   const c = fit === "container";
   return (
@@ -30,6 +72,9 @@ export function AlertClassic({
       className={`${c ? "w-[90cqw]" : "w-[min(1400px,94vw)]"} text-center font-bold text-white ${className}`}
       style={{ textShadow: outline }}
     >
+      {image && (image.sticker || image.url) && (
+        <AlertMedia image={image} className={`mx-auto mb-[0.3em] w-auto max-w-full ${IMG_H[fit][image.size]}`} shadow="0 8px 18px rgb(0 0 0 / 0.5)" />
+      )}
       <p className={`${c ? "text-[clamp(16px,6cqw,80px)]" : "text-[clamp(28px,4.2vw,80px)]"} leading-[1.15] tracking-[-0.01em] [text-wrap:balance]`}>
         <span className="text-[#ff3b30]">{data.donorName}</span> โดเนทมา{" "}
         {/* ยอดเงินไล่สี: ใช้ drop-shadow แทน text-shadow เพราะ text-shadow ทับสีไล่ของ background-clip */}

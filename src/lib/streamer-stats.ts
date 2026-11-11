@@ -68,7 +68,7 @@ export async function markAlertTested(userId: number) {
   await exec("UPDATE users SET alert_tested_at = NOW() WHERE id = ?", [userId]).catch(() => {});
 }
 
-export const GOAL_STYLES = ["neon", "tube", "ring", "edge", "basic"] as const;
+export const GOAL_STYLES = ["basic", "tube", "ring", "battery", "gauge", "milestone"] as const;
 export type GoalStyle = (typeof GOAL_STYLES)[number];
 export const isGoalStyle = (v: unknown): v is GoalStyle => typeof v === "string" && (GOAL_STYLES as readonly string[]).includes(v);
 
@@ -77,7 +77,7 @@ export type Goal = { title: string; target: number; raised: number; startsAt: nu
 /** เป้าหมายโดเนท (null = ยังไม่ได้ตั้ง หรือยังไม่ได้ migrate) */
 export async function getGoal(userId: number): Promise<Goal | null> {
   try {
-    // ยังไม่ได้รัน 009 (ไม่มีคอลัมน์ style) ก็ยังใช้ได้ ถือเป็นแบบนีออน
+    // ยังไม่ได้รัน 009 (ไม่มีคอลัมน์ style) ก็ยังใช้ได้ ถือเป็นแบบเรียบ
     const sql = (withStyle: boolean) =>
       `SELECT title, target_amount, UNIX_TIMESTAMP(starts_at) AS starts${withStyle ? ", style" : ""} FROM donation_goals WHERE user_id = ?`;
     type Row = RowDataPacket & { title: string; target_amount: number; starts: number; style?: string };
@@ -92,7 +92,7 @@ export async function getGoal(userId: number): Promise<Goal | null> {
       target: Number(g.target_amount),
       raised: Number(r?.raised ?? 0),
       startsAt: Number(g.starts) * 1000,
-      style: isGoalStyle(g.style) ? g.style : "neon",
+      style: isGoalStyle(g.style) ? g.style : "basic",
     };
   } catch {
     return null;

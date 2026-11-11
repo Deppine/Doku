@@ -14,6 +14,7 @@ import { SettingsForm } from "./SettingsForm";
 import { SoundSettings } from "./SoundSettings";
 import { AlertStylePicker, CopyButton, DonationList, GoalCard, SetupChecklist, TestButton } from "./StreamerParts";
 import { DashboardShell, SettingBlock, type DashSection } from "./DashboardShell";
+import { AlertImageSettings } from "./AlertImageSettings";
 import { getSoundSettings, toClient } from "@/lib/alert-settings";
 import { maskPromptPay } from "@/lib/promptpay";
 import { PageBackdrop } from "@/components/PageBackdrop";
@@ -249,6 +250,16 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
           </SettingBlock>
           <SettingBlock icon="page" title="รูปแบบแจ้งเตือน" desc="เลือกแล้วบันทึกทันที วิดเจ็ตใน OBS เปลี่ยนตามโดยไม่ต้องรีเฟรช">
             <AlertStylePicker initial={sound.alertStyle} />
+          </SettingBlock>
+          <SettingBlock
+            icon="image"
+            title="รูป / GIF ประกอบแจ้งเตือน"
+            desc="เลือกสติกเกอร์โดกูจากคลัง หรืออัปโหลดรูป / GIF ของคุณ ให้ขึ้นตอนมีคนโดเนท ใช้ได้กับแบบตัวอักษรกลางจอ (เหนือข้อความ) และแบบโดกูชูป้าย / โดกูประกาศ (แทนตัวโดกู)"
+          >
+            <AlertImageSettings
+              initial={{ url: toClient(sound, null).alertImageUrl, sticker: sound.alertSticker, size: sound.alertImageSize, anim: sound.alertImageAnim }}
+              style={sound.alertStyle}
+            />
           </SettingBlock>
         </div>
       ),

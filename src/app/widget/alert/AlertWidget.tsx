@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AlertCard, type AlertData } from "@/components/AlertCard";
-import { AlertClassic } from "@/components/AlertClassic";
+import { AlertClassic, type AlertImage } from "@/components/AlertClassic";
 import { AlertAnnounce, AlertLed, AlertNeon, AlertPop, AlertSign } from "@/components/AlertStyles";
 import type { AlertStyle } from "@/lib/alert-style";
 import { DEFAULT_SOUND, playAlert, setAudioLogger, type AlertSoundSettings } from "@/lib/alert-sound";
+import { pickSticker, type StickerId } from "@/lib/stickers";
 
 type Incoming = AlertData & { id: string; test?: boolean };
 
@@ -48,6 +49,14 @@ export function AlertWidget({
   const queue = useRef<Incoming[]>([]);
   const playing = useRef(false);
   const sound = useRef<AlertSoundSettings>(DEFAULT_SOUND);
+  // รูปประกอบ: สติกเกอร์โดกู (random = สุ่มท่าต่อรายการ) หรือรูปที่อัปโหลด
+  const [media, setMedia] = useState<{ url: string | null; sticker: StickerId | "random" | null; size: AlertImage["size"]; anim: AlertImage["anim"] } | null>(null);
+  const applySettings = (s: AlertSoundSettings) => {
+    sound.current = s;
+    if (s.alertStyle) setStyle(s.alertStyle);
+    const sticker = s.alertSticker ?? null;
+    setMedia(sticker || s.alertImageUrl ? { url: s.alertImageUrl ?? null, sticker, size: s.alertImageSize ?? "m", anim: s.alertImageAnim ?? "pop" } : null);
+  };
 
   useEffect(() => {
     if (!token) {
@@ -59,10 +68,7 @@ export function AlertWidget({
     let offlineTimer: ReturnType<typeof setTimeout> | undefined;
     es.addEventListener("ready", (e) => {
       const data = JSON.parse((e as MessageEvent).data);
-      if (data.sound) {
-        sound.current = data.sound;
-        if (data.sound.alertStyle) setStyle(data.sound.alertStyle);
-      }
+      if (data.sound) applySettings(data.sound);
       addLog.current(`เชื่อมต่อแล้ว · เสียงอ่าน: ${data.sound?.ttsServerUrl && data.sound?.ttsEngine !== "browser" ? "เซิร์ฟเวอร์" : "ในเครื่อง"} · tts=${tts ? "เปิด" : "ปิด"}`);
       clearTimeout(offlineTimer);
       setStatus("online");
@@ -75,8 +81,7 @@ export function AlertWidget({
     });
     // ตั้งค่าเสียงในแดชบอร์ดแล้วมีผลทันที ไม่ต้องรีเฟรช OBS
     es.addEventListener("settings", (e) => {
-      sound.current = JSON.parse((e as MessageEvent).data);
-      if (sound.current.alertStyle) setStyle(sound.current.alertStyle);
+      applySettings(JSON.parse((e as MessageEvent).data));
       addLog.current("ได้รับการตั้งค่าเสียงใหม่");
     });
     es.addEventListener("alert", (e) => {
@@ -117,6 +122,9 @@ export function AlertWidget({
     }, SHOW_MS + 360);
   }
 
+  const image: AlertImage | null =
+    media && current ? { ...media, sticker: media.sticker ? pickSticker(media.sticker, current.id) : null } : null;
+
   return (
     <main className={`flex min-h-dvh items-start justify-center overflow-hidden ${variant === "classic" ? "pt-[6vh]" : "pt-10"}`}>
       {current &&
@@ -127,13 +135,13 @@ export function AlertWidget({
         ) : variant === "led" ? (
           <AlertLed key={current.id} data={current} leaving={leaving} showMs={SHOW_MS} />
         ) : variant === "sign" ? (
-          <AlertSign key={current.id} data={current} leaving={leaving} />
+          <AlertSign key={current.id} data={current} leaving={leaving} image={image} />
         ) : variant === "announce" ? (
-          <AlertAnnounce key={current.id} data={current} leaving={leaving} />
+          <AlertAnnounce key={current.id} data={current} leaving={leaving} image={image} />
         ) : variant === "card" ? (
           <AlertCard key={current.id} data={current} className={leaving ? "alert-out" : "alert-in"} />
         ) : (
-          <AlertClassic key={current.id} data={current} className={leaving ? "pop-out" : "pop-in"} />
+          <AlertClassic key={current.id} data={current} image={image} className={leaving ? "pop-out" : "pop-in"} />
         ))}
       {showStatus && !current && (
         <p

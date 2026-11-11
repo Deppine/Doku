@@ -1,11 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { baht } from "@/lib/format";
 import type { AlertStyle } from "@/lib/alert-style";
 import { Mascot } from "@/components/Mascot";
 import type { GoalStyle } from "@/lib/streamer-stats";
+import { SettingBlock } from "./DashboardShell";
+import { CopyField } from "./DashboardClient";
 
 /** ปุ่มคัดลอกข้อความ */
 export function CopyButton({ value, label, className }: { value: string; label: string; className?: string }) {
@@ -203,6 +205,7 @@ export function GoalCard({ goal, widgetUrl }: { goal: Goal; widgetUrl: string })
   const [reset, setReset] = useState(!goal);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [style, setStyle] = useState<GoalStyle>(goal?.style ?? "basic");
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -231,88 +234,154 @@ export function GoalCard({ goal, widgetUrl }: { goal: Goal; widgetUrl: string })
 
   const pct = goal ? Math.min(100, (goal.raised / goal.target) * 100) : 0;
   return (
-    <section aria-labelledby="goal-h" className="rounded-[22px] bg-surface p-5 sm:p-6">
-      <div className="flex items-baseline justify-between gap-2">
-        <h2 id="goal-h" className="text-[19px] font-semibold">
-          เป้าหมายโดเนท
-        </h2>
-        {!editing && (
-          <button type="button" onClick={() => setEditing(true)} className="text-[13px] font-semibold text-red">
-            {goal ? "แก้ไข" : "ตั้งเป้าหมาย"}
-          </button>
+    <div className="space-y-4">
+      <SettingBlock
+        icon="goal"
+        title="เป้าหมาย"
+        desc="ตั้งชื่อและยอดที่อยากได้ เช่น ซื้อไมค์ใหม่ ฿5,000 ยอดจะเพิ่มเองทุกครั้งที่มีโดเนทผ่านการตรวจ"
+      >
+        {editing ? (
+          <form onSubmit={save} className="mt-3 space-y-2.5">
+            <label className="block">
+              <span className="text-[13px] text-ink-2">ชื่อเป้าหมาย</span>
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                maxLength={80}
+                placeholder="เช่น ซื้อไมค์ใหม่"
+                className="mt-1 block min-h-11 w-full rounded-xl bg-paper px-3 text-[15px] focus:outline-none focus-visible:ring-2 focus-visible:ring-red/40"
+              />
+            </label>
+            <label className="block">
+              <span className="text-[13px] text-ink-2">ยอดเป้าหมาย (บาท)</span>
+              <input
+                value={target}
+                onChange={(e) => setTarget(e.target.value.replace(/\D/g, "").slice(0, 8))}
+                inputMode="numeric"
+                placeholder="5000"
+                className="mt-1 block min-h-11 w-full rounded-xl bg-paper px-3 text-[15px] tabular-nums focus:outline-none focus-visible:ring-2 focus-visible:ring-red/40"
+              />
+            </label>
+            {goal && (
+              <label className="flex items-center gap-2 text-[14px] text-ink-2">
+                <input type="checkbox" checked={reset} onChange={(e) => setReset(e.target.checked)} className="size-4 accent-[var(--color-red)]" />
+                เริ่มนับยอดใหม่ตั้งแต่ตอนนี้
+              </label>
+            )}
+            {err && (
+              <p role="alert" className="text-[13px] text-red">
+                {err}
+              </p>
+            )}
+            <div className="flex flex-wrap gap-2 pt-1">
+              <button type="submit" disabled={busy} className="btn-primary min-h-11 px-4 py-2 text-[14px]">
+                {busy ? "กำลังบันทึก…" : "บันทึก"}
+              </button>
+              <button type="button" onClick={() => setEditing(false)} className="btn-quiet min-h-11 px-4 py-2 text-[14px] text-ink-2">
+                ยกเลิก
+              </button>
+              {goal && (
+                <button type="button" onClick={remove} className="ml-auto min-h-11 px-2 text-[14px] text-ink-3 hover:text-red">
+                  ลบเป้าหมาย
+                </button>
+              )}
+            </div>
+          </form>
+        ) : goal ? (
+          <div className="rounded-2xl bg-paper p-4">
+            <div className="flex items-start justify-between gap-3">
+              <p className="min-w-0 font-semibold">{goal.title}</p>
+              <button type="button" onClick={() => setEditing(true)} className="shrink-0 text-[13px] font-semibold text-red">
+                แก้ไข
+              </button>
+            </div>
+            <p className="amount mt-1 text-[28px] tabular-nums">
+              ฿{baht(goal.raised)} <span className="text-[14px] font-normal text-ink-3">/ ฿{baht(goal.target)}</span>
+            </p>
+            <div aria-hidden className="mt-2.5 h-2.5 rounded-full bg-fill">
+              <div className="h-2.5 rounded-full bg-red" style={{ width: `${Math.max(2, pct)}%` }} />
+            </div>
+            <p className="mt-1.5 text-[12px] text-ink-3">{Math.floor(pct)}% ของเป้าหมาย</p>
+          </div>
+        ) : (
+          <div className="rounded-2xl bg-paper p-4">
+            <p className="text-[14px] text-ink-2">ยังไม่มีเป้าหมาย ตั้งแล้วเอาหลอดขึ้นจอไลฟ์ให้ผู้ชมช่วยกันเติม</p>
+            <button type="button" onClick={() => setEditing(true)} className="btn-primary mt-3 px-5 py-2.5 text-[15px]">
+              ตั้งเป้าหมาย
+            </button>
+          </div>
+        )}
+      </SettingBlock>
+
+      {goal && (
+        <>
+          <SettingBlock icon="page" title="หน้าตาบนจอไลฟ์" desc="เลือกแล้วบันทึกทันที หลอดใน OBS เปลี่ยนตามภายใน 10 วินาที ไม่ต้องรีเฟรช">
+            <GoalStylePicker initial={style} onChange={setStyle} />
+            <GoalPreview widgetUrl={widgetUrl} style={style} />
+          </SettingBlock>
+          <SettingBlock
+            icon="bell"
+            title="ลิงก์วิดเจ็ตเป้าหมาย"
+            desc={`ใน OBS เพิ่ม Browser Source แล้ววางลิงก์นี้ ขนาดที่แนะนำ ${GOAL_SIZES[style].label} พื้นหลังโปร่งใส`}
+          >
+            <div className="[&>div]:bg-paper">
+              <CopyField label="ลิงก์หลอดเป้าหมาย (เก็บเป็นความลับ)" value={widgetUrl} secret />
+            </div>
+          </SettingBlock>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** ขนาด Browser Source ที่แนะนำ + ตำแหน่งบนจอ 1920×1080 สำหรับตัวอย่าง */
+const GOAL_SIZES: Record<GoalStyle, { w: number; h: number; label: string; pos: React.CSSProperties }> = {
+  basic: { w: 600, h: 160, label: "600 × 160", pos: { left: 60, top: 60 } },
+  tube: { w: 360, h: 640, label: "360 × 640", pos: { right: 60, top: 220 } },
+  ring: { w: 300, h: 90, label: "300 × 90", pos: { right: 60, top: 60 } },
+  battery: { w: 560, h: 150, label: "560 × 150", pos: { left: 60, top: 60 } },
+  gauge: { w: 380, h: 250, label: "380 × 250", pos: { right: 60, top: 60 } },
+  milestone: { w: 660, h: 180, label: "660 × 180", pos: { left: 630, bottom: 40 } },
+};
+
+/** ตัวอย่างหลอดจริงบนจอไลฟ์ย่อส่วน (วิดเจ็ตเดียวกับใน OBS ขนาดตามที่แนะนำ) */
+function GoalPreview({ widgetUrl, style }: { widgetUrl: string; style: GoalStyle }) {
+  const box = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(0);
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setScale(el.clientWidth / 1920));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const z = GOAL_SIZES[style];
+  return (
+    <div className="mt-4">
+      <p className="mb-1.5 text-[13px] text-ink-2">ตัวอย่างบนจอไลฟ์ (ยอดจริงตอนนี้)</p>
+      <div
+        ref={box}
+        className="relative aspect-video overflow-hidden rounded-2xl bg-[radial-gradient(70%_60%_at_15%_100%,#3a1d2a_0%,transparent_60%),radial-gradient(60%_60%_at_95%_0%,#1d2a44_0%,transparent_60%),linear-gradient(180deg,#141821,#0b0d12)]"
+      >
+        {scale > 0 && (
+          <div className="absolute left-0 top-0 origin-top-left" style={{ width: 1920, height: 1080, transform: `scale(${scale})` }}>
+            <iframe
+              key={style}
+              title="ตัวอย่างหลอดเป้าหมายบนจอไลฟ์"
+              src={`${widgetUrl}&style=${style}`}
+              tabIndex={-1}
+              className="pointer-events-none absolute border-0"
+              style={{ width: z.w, height: z.h, ...z.pos, background: "transparent" }}
+            />
+          </div>
         )}
       </div>
-
-      {editing ? (
-        <form onSubmit={save} className="mt-3 space-y-2.5">
-          <label className="block">
-            <span className="text-[13px] text-ink-2">ชื่อเป้าหมาย</span>
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              maxLength={80}
-              placeholder="เช่น ซื้อไมค์ใหม่"
-              className="mt-1 block min-h-11 w-full rounded-xl bg-paper px-3 text-[15px] focus:outline-none focus-visible:ring-2 focus-visible:ring-red/40"
-            />
-          </label>
-          <label className="block">
-            <span className="text-[13px] text-ink-2">ยอดเป้าหมาย (บาท)</span>
-            <input
-              value={target}
-              onChange={(e) => setTarget(e.target.value.replace(/\D/g, "").slice(0, 8))}
-              inputMode="numeric"
-              placeholder="5000"
-              className="mt-1 block min-h-11 w-full rounded-xl bg-paper px-3 text-[15px] tabular-nums focus:outline-none focus-visible:ring-2 focus-visible:ring-red/40"
-            />
-          </label>
-          {goal && (
-            <label className="flex items-center gap-2 text-[14px] text-ink-2">
-              <input type="checkbox" checked={reset} onChange={(e) => setReset(e.target.checked)} className="size-4 accent-[var(--color-red)]" />
-              เริ่มนับยอดใหม่ตั้งแต่ตอนนี้
-            </label>
-          )}
-          {err && (
-            <p role="alert" className="text-[13px] text-red">
-              {err}
-            </p>
-          )}
-          <div className="flex flex-wrap gap-2 pt-1">
-            <button type="submit" disabled={busy} className="btn-primary min-h-11 px-4 py-2 text-[14px]">
-              {busy ? "กำลังบันทึก…" : "บันทึก"}
-            </button>
-            <button type="button" onClick={() => setEditing(false)} className="btn-quiet min-h-11 px-4 py-2 text-[14px] text-ink-2">
-              ยกเลิก
-            </button>
-            {goal && (
-              <button type="button" onClick={remove} className="ml-auto min-h-11 px-2 text-[14px] text-ink-3 hover:text-red">
-                ลบเป้าหมาย
-              </button>
-            )}
-          </div>
-        </form>
-      ) : goal ? (
-        <>
-          <p className="mt-3 font-semibold">{goal.title}</p>
-          <p className="amount mt-0.5 text-[26px] tabular-nums">
-            ฿{baht(goal.raised)} <span className="text-[14px] font-normal text-ink-3">/ ฿{baht(goal.target)}</span>
-          </p>
-          <div aria-hidden className="mt-2.5 h-2.5 rounded-full bg-fill">
-            <div className="h-2.5 rounded-full bg-red" style={{ width: `${Math.max(2, pct)}%` }} />
-          </div>
-          <GoalStylePicker initial={goal.style} />
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <CopyButton value={widgetUrl} label="คัดลอกลิงก์หลอดเป้าหมาย (OBS)" className="rounded-full bg-fill px-3.5 py-2 text-[13px] font-semibold text-ink" />
-          </div>
-        </>
-      ) : (
-        <p className="mt-3 text-[14px] text-ink-2">ตั้งเป้า เช่น &quot;ซื้อไมค์ใหม่ ฿5,000&quot; แล้วเอาแถบความคืบหน้าขึ้นจอไลฟ์ให้ผู้ชมช่วยกันเติม</p>
-      )}
-    </section>
+    </div>
   );
 }
 
 /** เลือกหน้าตาหลอดเป้าหมาย (บันทึกทันที OBS เปลี่ยนตามในไม่เกิน 10 วินาที) */
-function GoalStylePicker({ initial }: { initial: GoalStyle }) {
+function GoalStylePicker({ initial, onChange }: { initial: GoalStyle; onChange?: (s: GoalStyle) => void }) {
   const [style, setStyle] = useState<GoalStyle>(initial);
   const [err, setErr] = useState<string | null>(null);
   async function pick(next: GoalStyle) {
@@ -327,17 +396,18 @@ function GoalStylePicker({ initial }: { initial: GoalStyle }) {
     if (!res.ok) {
       setStyle(prev);
       setErr((await res.json().catch(() => ({}))).message ?? "บันทึกไม่สำเร็จ");
+      return;
     }
+    onChange?.(next);
   }
-  const opts: { v: GoalStyle; label: string; size: string; preview: ReactNode }[] = [
+  const opts: { v: GoalStyle; label: string; preview: ReactNode }[] = [
     {
-      v: "neon",
-      label: "แคปซูลนีออน",
-      size: "600 × 160",
+      v: "basic",
+      label: "แบบเรียบ",
       preview: (
-        <span className="w-[82%] rounded-lg bg-[rgba(30,12,14,.95)] p-1.5 shadow-[0_0_0_1px_rgba(255,59,48,.5)]">
-          <span className="block h-2 rounded-full bg-white/10">
-            <span className="block h-2 w-[65%] rounded-full bg-[linear-gradient(90deg,#c40000,#ff3b30)] shadow-[0_0_8px_rgba(255,59,48,.8)]" />
+        <span className="w-[82%] rounded-lg bg-[#1c1c1e] p-1.5">
+          <span className="block h-2 rounded-full bg-white/15">
+            <span className="block h-2 w-[65%] rounded-full bg-[#ff3b30]" />
           </span>
         </span>
       ),
@@ -345,7 +415,6 @@ function GoalStylePicker({ initial }: { initial: GoalStyle }) {
     {
       v: "tube",
       label: "หลอดแก้วเก็บเงิน",
-      size: "360 × 640",
       preview: (
         <span className="relative h-[70%] w-5 overflow-hidden rounded-full bg-white/10 shadow-[inset_0_0_0_1.5px_rgba(255,255,255,.3)]">
           <span className="absolute inset-x-0 bottom-0 h-[65%] bg-[linear-gradient(180deg,#ff5a4f,#c40000)]" />
@@ -355,7 +424,6 @@ function GoalStylePicker({ initial }: { initial: GoalStyle }) {
     {
       v: "ring",
       label: "วงแหวนมุมจอ",
-      size: "300 × 90",
       preview: (
         <span className="flex items-center gap-1 rounded-full bg-[rgba(10,10,12,.9)] py-0.5 pl-0.5 pr-2 shadow-[0_0_0_1px_rgba(255,255,255,.1)]">
           <span className="grid size-6 place-items-center rounded-full bg-[conic-gradient(#ff3b30_234deg,rgba(255,255,255,.15)_0deg)]">
@@ -366,36 +434,51 @@ function GoalStylePicker({ initial }: { initial: GoalStyle }) {
       ),
     },
     {
-      v: "edge",
-      label: "เส้นขอบจอ",
-      size: "1920 × 80 (วางชิดขอบล่าง)",
+      v: "battery",
+      label: "แบตเตอรี่ชาร์จ",
       preview: (
-        <span className="relative block h-full w-full">
-          <span className="absolute bottom-2 left-[58%] h-2 w-8 -translate-x-1/2 rounded-full bg-[rgba(10,10,12,.9)] shadow-[0_0_0_1px_rgba(255,59,48,.6)]" />
-          <span className="absolute inset-x-0 bottom-0 h-[3px] bg-white/10">
-            <span className="block h-full w-[65%] bg-[#ff3b30] shadow-[0_0_6px_rgba(255,59,48,.9)]" />
+        <span className="flex items-center">
+          <span className="flex h-5 w-16 gap-[2px] rounded-[4px] p-[2px] shadow-[inset_0_0_0_1.5px_rgba(255,255,255,.4)]">
+            {[1, 1, 1, 1, 1, 1, 0, 0, 0].map((on, i) => (
+              <span key={i} className="flex-1 rounded-[1px]" style={{ background: on ? "#30d158" : "rgba(255,255,255,.1)" }} />
+            ))}
           </span>
+          <span className="ml-[2px] h-2 w-1 rounded-r-sm bg-white/40" />
         </span>
       ),
     },
     {
-      v: "basic",
-      label: "แบบเรียบ",
-      size: "600 × 160",
+      v: "gauge",
+      label: "มาตรวัดเข็ม",
       preview: (
-        <span className="w-[82%] rounded-lg bg-[#1c1c1e] p-1.5">
-          <span className="block h-2 rounded-full bg-white/15">
-            <span className="block h-2 w-[65%] rounded-full bg-[#ff3b30]" />
+        <svg viewBox="0 0 60 34" className="w-14" aria-hidden>
+          <path d="M6 30 A24 24 0 0 1 54 30" fill="none" stroke="rgba(255,255,255,.15)" strokeWidth="5" strokeLinecap="round" />
+          <path d="M6 30 A24 24 0 0 1 44 12" fill="none" stroke="#ff3b30" strokeWidth="5" strokeLinecap="round" />
+          <path d="M29 30 L42 14 L31 31 Z" fill="#fff" />
+        </svg>
+      ),
+    },
+    {
+      v: "milestone",
+      label: "ด่านเป้าหมาย",
+      preview: (
+        <span className="relative flex w-[80%] items-center justify-between">
+          <span className="absolute inset-x-1 top-1/2 h-[3px] -translate-y-1/2 bg-white/15">
+            <span className="block h-full w-[55%] bg-[#ff3b30]" />
           </span>
+          {[2, 2, 1, 0].map((st, i) => (
+            <span
+              key={i}
+              className={`relative size-3 rounded-full border-2 ${st === 2 ? "border-[#ff3b30] bg-[#ff3b30]" : st === 1 ? "border-[#ff3b30] bg-[#1c1c1e]" : "border-white/25 bg-[#1c1c1e]"}`}
+            />
+          ))}
         </span>
       ),
     },
   ];
-  const cur = opts.find((o) => o.v === style) ?? opts[0];
   return (
-    <div className="mt-4">
-      <p className="text-[13px] text-ink-2">หน้าตาบนจอไลฟ์</p>
-      <div role="radiogroup" aria-label="หน้าตาหลอดเป้าหมาย" className="mt-1.5 grid grid-cols-3 gap-2 sm:grid-cols-5 lg:grid-cols-3">
+    <div>
+      <div role="radiogroup" aria-label="หน้าตาหลอดเป้าหมาย" className="grid grid-cols-3 gap-2 sm:grid-cols-6">
         {opts.map((o) => (
           <button
             key={o.v}
@@ -417,7 +500,6 @@ function GoalStylePicker({ initial }: { initial: GoalStyle }) {
           {err}
         </p>
       )}
-      <p className="mt-2 text-[12px] text-ink-3">ใน OBS เพิ่ม Browser Source ขนาด {cur.size} พื้นหลังโปร่งใส</p>
     </div>
   );
 }
@@ -494,7 +576,10 @@ export function AlertStylePicker({ initial }: { initial: AlertStyle }) {
     if (!res.ok) {
       setStyle(prev);
       setErr((await res.json().catch(() => ({}))).message ?? "บันทึกไม่สำเร็จ");
+      return;
     }
+    // ให้ตัวอย่างรูป/GIF ด้านล่างเปลี่ยนตามรูปแบบที่เลือก
+    window.dispatchEvent(new CustomEvent("doku:alert-style", { detail: next }));
   }
   const opts: { v: AlertStyle; label: string; preview: ReactNode }[] = [
     {

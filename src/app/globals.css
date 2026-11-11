@@ -454,3 +454,56 @@
 /* แถบเมนูเลื่อนแนวนอน (แดชบอร์ดบนมือถือ): ซ่อนแถบเลื่อน */
 .no-scrollbar { scrollbar-width: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* รูป/GIF ประกอบแจ้งเตือน (แบบตัวอักษรกลางจอ): ท่าเข้า */
+@keyframes alert-img-pop { 0% { transform: scale(0) rotate(-12deg); opacity: 0; } 60% { transform: scale(1.15) rotate(4deg); opacity: 1; } 100% { transform: none; } }
+@keyframes alert-img-rise { 0% { transform: translateY(40%); opacity: 0; } 100% { transform: none; opacity: 1; } }
+@keyframes alert-img-zoom { 0% { transform: scale(2.2); opacity: 0; filter: blur(6px); } 100% { transform: none; opacity: 1; } }
+.alert-img-pop { animation: alert-img-pop 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.3) both; }
+.alert-img-rise { animation: alert-img-rise 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.alert-img-zoom { animation: alert-img-zoom 0.5s ease-out both; }
+@media (prefers-reduced-motion: reduce) {
+  .alert-img-pop, .alert-img-rise, .alert-img-zoom { animation: none; }
+}
+
+/* คลังสติกเกอร์โดกู (src/lib/stickers.ts): ท่าขยับ */
+@keyframes stk-kf-dance{0%,100%{transform:rotate(-9deg) translateY(0)}50%{transform:rotate(9deg) translateY(-8px)}}
+@keyframes stk-kf-jump{0%,100%{transform:translateY(0) scale(1.06,.94)}35%{transform:translateY(-26px) scale(.96,1.05)}70%{transform:translateY(0) scale(1.04,.96)}}
+@keyframes stk-kf-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+@keyframes stk-kf-shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-5px) rotate(-3deg)}40%{transform:translateX(5px) rotate(3deg)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
+@keyframes stk-kf-sway{0%,100%{transform:rotate(-5deg)}50%{transform:rotate(5deg)}}
+@keyframes stk-kf-sob{0%,100%{transform:translateY(0)}25%,75%{transform:translateY(-3px)}50%{transform:translateY(1px)}}
+@keyframes stk-kf-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+@keyframes stk-kf-nod{0%,60%,100%{transform:rotate(0)}70%{transform:rotate(-6deg)}85%{transform:rotate(3deg)}}
+@keyframes stk-kf-wv{0%,100%{transform:rotate(0)}50%{transform:rotate(-28deg)}}
+@keyframes stk-kf-wvL{0%,100%{transform:rotate(0)}50%{transform:rotate(28deg)}}
+@keyframes stk-kf-ledb{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes stk-kf-fh{0%{opacity:0;transform:translate(var(--x,0),40px) scale(.5)}20%{opacity:1}100%{opacity:0;transform:translate(var(--x,0),-30px) scale(1.2)}}
+@keyframes stk-kf-cn{0%{opacity:0;transform:translateY(-20px) rotate(0)}15%{opacity:1}80%{opacity:1}100%{opacity:0;transform:translateY(60px) rotate(360deg)}}
+@keyframes stk-kf-sp{0%,100%{opacity:0;transform:scale(.3)}50%{opacity:1;transform:scale(1)}}
+@keyframes stk-kf-nt{0%{opacity:0;transform:translateY(10px)}30%{opacity:1}100%{opacity:0;transform:translateY(-30px)}}
+@keyframes stk-kf-tear{0%{transform:translateY(0);opacity:1}100%{transform:translateY(22px);opacity:0}}
+@keyframes stk-kf-bg{0%,100%{transform:scale(1)}50%{transform:scale(1.2)}}
+@keyframes stk-kf-sg{0%,100%{transform:rotate(-4deg)}50%{transform:rotate(4deg)}}
+.stk-dance{animation:stk-kf-dance .9s ease-in-out infinite}.stk-jump{animation:stk-kf-jump .8s ease-in-out infinite}.stk-pulse{animation:stk-kf-pulse 1s ease-in-out infinite}
+.stk-shake{animation:stk-kf-shake .45s linear infinite}.stk-sway{animation:stk-kf-sway 1.6s ease-in-out infinite}.stk-sob{animation:stk-kf-sob .5s ease-in-out infinite}
+.stk-bob{animation:stk-kf-bob 1.2s ease-in-out infinite}.stk-nod{animation:stk-kf-nod 1.6s ease-in-out infinite}
+.stk-wv{animation:stk-kf-wv .5s ease-in-out infinite}.stk-wvl{animation:stk-kf-wvL .5s ease-in-out infinite}.stk-led{animation:stk-kf-ledb .6s infinite}
+.stk-heart{animation:stk-kf-fh 2s ease-out infinite;transform-box:fill-box}.stk-coin{animation:stk-kf-cn 1.4s ease-in infinite}.stk-spark{animation:stk-kf-sp 1.2s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+.stk-note{animation:stk-kf-nt 1.6s ease-out infinite}.stk-tear{animation:stk-kf-tear .9s ease-in infinite}.stk-t2{animation-delay:.45s}.stk-bang{animation:stk-kf-bg .45s ease-in-out infinite;transform-origin:115px 0}.stk-sign{animation:stk-kf-sg 1.2s ease-in-out infinite}
+@media (prefers-reduced-motion: reduce) {
+  [class^="stk-"], [class*=" stk-"] { animation: none !important; }
+}
+
+/* หลอดเป้าหมาย: แบตเตอรี่ชาร์จ / มาตรวัดเข็ม / ด่านเป้าหมาย (GoalWidget.tsx) */
+@keyframes goal-batt-bump { 0% { transform: scale(1); } 35% { transform: scale(1.06); filter: brightness(1.35); } 100% { transform: scale(1); filter: none; } }
+@keyframes goal-batt-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+@keyframes goal-needle-kick { 0% { transform: rotate(0); } 30% { transform: rotate(9deg); } 60% { transform: rotate(-4deg); } 100% { transform: rotate(0); } }
+@keyframes goal-node-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgb(255 59 48 / 0.55); } 50% { box-shadow: 0 0 0 7px rgb(255 59 48 / 0); } }
+.goal-batt-bump { animation: goal-batt-bump 0.6s ease-out; }
+.goal-batt-blink { animation: goal-batt-blink 1s ease-in-out infinite; }
+.goal-needle-kick { animation: goal-needle-kick 0.9s cubic-bezier(0.3, 1.4, 0.5, 1); }
+.goal-node-pulse { animation: goal-node-pulse 1.6s ease-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .goal-batt-bump, .goal-batt-blink, .goal-needle-kick, .goal-node-pulse { animation: none; }
+}

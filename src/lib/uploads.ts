@@ -1,5 +1,5 @@
 /**
- * เก็บไฟล์สลิป / เสียงแจ้งเตือน
+ * เก็บไฟล์สลิป / เสียงแจ้งเตือน / รูปประกอบแจ้งเตือน
  * - ค่าเริ่มต้น: เก็บในฐานข้อมูล (ตาราง stored_files) ใช้ได้ทั้งเครื่องตัวเองและ Vercel
  * - UPLOAD_STORAGE=disk: เก็บในโฟลเดอร์ UPLOAD_DIR (ค่าเริ่มต้น <โปรเจกต์>/uploads)
  * ไฟล์ในฐานข้อมูลอ้างอิงด้วย "db:<id>.<นามสกุล>" ไฟล์เก่าบนดิสก์ยังอ่านได้ตามเดิม
@@ -13,7 +13,7 @@ const ROOT = process.env.UPLOAD_DIR || path.join(/* turbopackIgnore: true */ pro
 const USE_DISK = process.env.UPLOAD_STORAGE === "disk";
 const DB_REF = /^db:(\d+)(?:\.[a-z0-9]+)?$/;
 
-async function saveToDb(kind: "slip" | "sound", mime: string, buf: Buffer, ext: string) {
+async function saveToDb(kind: "slip" | "sound" | "image", mime: string, buf: Buffer, ext: string) {
   const r = await exec("INSERT INTO stored_files (kind, mime, size, data) VALUES (?, ?, ?, ?)", [kind, mime.slice(0, 100), buf.length, buf]);
   return `db:${r.insertId}.${ext}`;
 }
@@ -59,6 +59,35 @@ export async function saveSoundFile(userId: number, file: File) {
   const abs = path.join(/* turbopackIgnore: true */ ROOT, rel);
   await fs.mkdir(path.dirname(abs), { recursive: true });
   await fs.writeFile(abs, Buffer.from(await file.arrayBuffer()));
+  return rel;
+}
+
+const IMAGE_EXT: Record<string, string> = {
+  "image/gif": "gif",
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/webp": "webp",
+};
+
+export function imageExt(type: string) {
+  return IMAGE_EXT[type] ?? null;
+}
+
+export function imageType(rel: string) {
+  const ext = rel.split(".").pop();
+  return ext === "gif" ? "image/gif" : ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg";
+}
+
+/** เก็บรูป/GIF ประกอบแจ้งเตือนของสตรีมเมอร์ */
+export async function saveImageFile(userId: number, file: File) {
+  const ext = imageExt(file.type);
+  if (!ext) throw new Error("UNSUPPORTED");
+  const buf = Buffer.from(await file.arrayBuffer());
+  if (!USE_DISK) return saveToDb("image", file.type, buf, ext);
+  const rel = path.posix.join("images", String(userId), `${Date.now()}-${randomBytes(4).toString("hex")}.${ext}`);
+  const abs = path.join(/* turbopackIgnore: true */ ROOT, rel);
+  await fs.mkdir(path.dirname(abs), { recursive: true });
+  await fs.writeFile(abs, buf);
   return rel;
 }
 

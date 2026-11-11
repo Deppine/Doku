@@ -31,6 +31,8 @@ services:
       - ./db/007_admin_dashboard.sql:/docker-entrypoint-initdb.d/08-admin-dashboard.sql:ro
       - ./db/008_streamer_dashboard.sql:/docker-entrypoint-initdb.d/09-streamer-dashboard.sql:ro
       - ./db/009_goal_style.sql:/docker-entrypoint-initdb.d/10-goal-style.sql:ro
+      - ./db/010_alert_image.sql:/docker-entrypoint-initdb.d/11-alert-image.sql:ro
+      - ./db/011_goal_style_retire.sql:/docker-entrypoint-initdb.d/12-goal-style-retire.sql:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-prootpass"]
       interval: 5s
